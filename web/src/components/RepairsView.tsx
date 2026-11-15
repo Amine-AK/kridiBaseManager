@@ -9,6 +9,7 @@ import { pageCss, paperWidth, pitch } from "@/lib/label-layout";
 import { newLedgerId, nowParts, REPAIR_STATUSES, STICKER_LOOK_KEY, type Repair, type RepairStatus } from "@/lib/ledger";
 import { displayDate, SHOP, whatsappLink } from "@/lib/receipt";
 import {
+  ownerForPhone,
   deliveredMessage,
   inShop,
   newRepairCode,
@@ -224,8 +225,23 @@ function RepairForm({ data, repair, onClose, onSaved }: { data: LedgerState; rep
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [photoBusy, setPhotoBusy] = useState(false);
   const saved = useRef(false);
+  // The name was filled from the phone number (not typed): a new number may replace it.
+  const ownerAuto = useRef(false);
+  // Who has this number, from the customers / repairs already on the device (no request).
+  const known = useMemo(() => ownerForPhone(v.phone, ledger), [v.phone, ledger]);
   const set = (k: keyof typeof v) => (value: string) => {
-    setV((o) => ({ ...o, [k]: value }));
+    setV((o) => {
+      const next = { ...o, [k]: value };
+      if (k === "owner") ownerAuto.current = false;
+      if (k === "phone") {
+        const found = ownerForPhone(value, ledger);
+        if (found && (!o.owner.trim() || ownerAuto.current)) {
+          next.owner = found.name;
+          ownerAuto.current = true;
+        }
+      }
+      return next;
+    });
     setErrors((e) => ({ ...e, [k]: "" }));
   };
 
@@ -314,11 +330,37 @@ function RepairForm({ data, repair, onClose, onSaved }: { data: LedgerState; rep
             {errors.photo && <span className="field-error">{errors.photo}</span>}
           </div>
         </div>
-        <Field id="rp-owner" label="مول الجهاز" error={errors.owner}>
-          <input id="rp-owner" value={v.owner} onChange={(e) => set("owner")(e.target.value)} autoFocus={!repair} />
+        {/* The number first: a known customer's name fills in by itself. */}
+        <Field
+          id="rp-phone"
+          label="التيليفون"
+          hint={
+            known ? (
+              <>
+                ✓ {known.from === "client" ? "زبون" : "جا قبل"}: <strong>{known.name}</strong>
+                {v.owner.trim() !== known.name && (
+                  <>
+                    {" · "}
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => {
+                        setV((o) => ({ ...o, owner: known.name }));
+                        ownerAuto.current = true;
+                      }}
+                    >
+                      استعمل «{known.name}»
+                    </button>
+                  </>
+                )}
+              </>
+            ) : undefined
+          }
+        >
+          <input id="rp-phone" type="tel" inputMode="tel" dir="ltr" value={v.phone} onChange={(e) => set("phone")(e.target.value)} autoFocus={!repair} />
         </Field>
-        <Field id="rp-phone" label="التيليفون">
-          <input id="rp-phone" type="tel" inputMode="tel" dir="ltr" value={v.phone} onChange={(e) => set("phone")(e.target.value)} />
+        <Field id="rp-owner" label="مول الجهاز" error={errors.owner}>
+          <input id="rp-owner" value={v.owner} onChange={(e) => set("owner")(e.target.value)} />
         </Field>
         <Field id="rp-device" label="الجهاز" error={errors.device} hint="مثلا: Samsung A15، Machine à laver Candy" wide>
           <input id="rp-device" value={v.device} onChange={(e) => set("device")(e.target.value)} />

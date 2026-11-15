@@ -3,7 +3,8 @@
 
 import { newShopCode, usedCodes } from "./barcode";
 import { money } from "./format";
-import type { Ledger, Repair, RepairStatus } from "./ledger";
+import { clientPhones, type Ledger, type Repair, type RepairStatus } from "./ledger";
+import { formatMoroccoPhone, isValidPhone } from "./sheet-logic";
 import { displayDate, SHOP } from "./receipt";
 import { normalizeText } from "./shop";
 
@@ -38,6 +39,22 @@ export function newRepairCode(id: string, ledger: Pick<Ledger, "stock" | "repair
   const taken = usedCodes(ledger.stock);
   for (const r of ledger.repairs) taken.add(r.code.toLowerCase());
   return newShopCode(id, taken);
+}
+
+/**
+ * Who has this phone number, from the data already on the device (no request):
+ * a customer of الزبناء (any of their numbers), else the owner of an earlier
+ * repair. Only a complete number, in any format («0661…», «+212 661…»).
+ */
+export function ownerForPhone(phone: string, ledger: Pick<Ledger, "clients" | "repairs">): { name: string; from: "client" | "repair" } | null {
+  const intl = formatMoroccoPhone(phone);
+  if (!isValidPhone(intl)) return null;
+  const client = ledger.clients.find((c) => clientPhones(c).some((p) => formatMoroccoPhone(p) === intl));
+  if (client?.name.trim()) return { name: client.name.trim(), from: "client" };
+  const repair = [...ledger.repairs]
+    .filter((r) => r.owner.trim() && formatMoroccoPhone(r.phone) === intl)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  return repair ? { name: repair.owner.trim(), from: "repair" } : null;
 }
 
 /** The repair with this barcode (scanned on its sticker). */
