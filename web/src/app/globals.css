@@ -1086,3 +1086,37 @@ a.btn { text-decoration: none; }
 .menu-user { padding: 6px 10px 2px; font-size: 14px; }
 .services { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 0; display: grid; gap: 8px; }
 .services legend { font-weight: 700; padding: 0 6px; }
+
+/* ---------------------------------------------------------------- الإصلاح (RepairsView.tsx) */
+
+.repair-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.repair-row { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); border-inline-start: 4px solid var(--line); }
+.repair-row.tone-ready { border-inline-start-color: var(--accent); }
+.repair-row.tone-work { border-inline-start-color: var(--info); }
+.repair-row.tone-wait { border-inline-start-color: var(--warn); }
+.repair-row.tone-bad { border-inline-start-color: var(--danger); }
+.repair-open {
+  width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 0; background: none;
+  color: inherit; font: inherit; text-align: start; cursor: pointer;
+}
+.repair-thumb { flex: none; width: 52px; height: 52px; border-radius: 10px; object-fit: cover; background: var(--surface-2); }
+.empty-thumb { display: grid; place-items: center; font-size: 24px; }
+.repair-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.repair-device { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repair-sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repair-side { flex: none; display: grid; justify-items: end; gap: 4px; }
+.repair-status { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); white-space: nowrap; }
+.repair-status.tone-ready { background: var(--accent-soft); color: var(--accent); }
+.repair-status.tone-work { background: var(--info-soft); color: var(--info); }
+.repair-status.tone-wait { background: var(--warn-soft); color: var(--warn); }
+.repair-status.tone-bad { background: var(--danger-soft); color: var(--danger); }
+.repair-left { font-size: 13px; font-weight: 700; white-space: nowrap; }
+.repair-photo-field { display: flex; align-items: center; gap: 12px; }
+.repair-photo { width: 96px; height: 96px; border-radius: 12px; object-fit: cover; background: var(--surface-2); flex: none; }
+.repair-photo.empty-photo { display: grid; place-items: center; font-size: 32px; }
+.repair-photo.big { width: 100%; height: auto; max-height: 50vh; object-fit: contain; }
+.repair-photo-actions { display: grid; gap: 6px; justify-items: start; }
+.segmented.repair-statuses { display: grid; grid-template-columns: repeat(3, 1fr); overflow: hidden; }
+.repair-statuses button { padding: 0 6px; white-space: nowrap; }
+.repair-code { display: grid; gap: 8px; justify-items: center; padding: 10px; border-radius: 10px; background: #fff; }
+.repair-code .ean13 { width: min(100%, 280px); height: auto; }

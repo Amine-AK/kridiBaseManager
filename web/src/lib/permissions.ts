@@ -43,6 +43,10 @@ export function opAllowed(me: Me, op: LedgerOp): boolean {
       return any("cancel_sale");
     case "caisse.close":
       return any("caisse");
+    case "repair.add":
+    case "repair.update":
+    case "repair.delete":
+      return any("repairs");
     default:
       return false;
   }
@@ -82,6 +86,8 @@ export function stampOp(me: Me, op: LedgerOp, ledger: Ledger): LedgerOp {
 
 /** The ledger as this user may see it. */
 export function ledgerFor(me: Me, ledger: Ledger): Ledger {
+  // Repairs hold customers' names and phones: only for accounts that do repairs.
+  if (!can(me, "repairs")) ledger = { ...ledger, repairs: [] };
   const cost = seesCost(me);
   const stock = cost ? ledger.stock : ledger.stock.map((s) => ({ ...s, buyPrice: 0 }));
   if (me.role === "stock") return { ...ledger, clients: [], purchases: [], payments: [], changes: [], sales: [], closings: [], stock };

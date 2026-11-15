@@ -31,7 +31,7 @@ reminders. Installable PWA, used on phones and the shop PC, works offline.
   dd/mm/yyyy; shop time zone Africa/Casablanca (`src/lib/sheet-logic.ts`).
 - IDs: `newLedgerId(prefix)` in `src/lib/ledger.ts`, prefixes: C client,
   S purchase, P payment, T instalment change, O op, I stock item, V sale,
-  M stock move, K cash-drawer close.
+  M stock move, K cash-drawer close, R repair.
 - Comments explain *why*, short, in plain English. Keep files' existing style.
 - Every user-visible number on phones: `<bdi dir="ltr">` around codes / digits.
 - Per-device settings go in `localStorage` (try/catch every access). Keys in use:
@@ -63,12 +63,13 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
   `applyOp`). Op types: `client.add/update/delete/installment`,
   `purchase.add/update/delete`, `payment.add/update/delete`,
   `stock.add/update/adjust/delete`, `sale.add/delete`, `category.save`,
-  `caisse.close`, `setting.save` (shop-wide settings, key → JSON text). Edits carry `base` (= record's `updatedAt`) → conflicts.
+  `caisse.close`, `setting.save` (shop-wide settings, key → JSON text),
+  `repair.add/update/delete`. Edits carry `base` (= record's `updatedAt`) → conflicts.
 - Server checks permissions per op: `src/app/api/sync/route.ts` +
   `src/lib/permissions.ts` (pure, tested) + `src/lib/access.ts`.
 - Sheet layout (tab names, columns, row ↔ object): `src/lib/ledger-sheet.ts`
   (`TABS`: الزبناء, المشتريات, الدفعات, تغييرات الطريطة, المخزون, الفئات,
-  المبيعات, حركات المخزون, الصندوق اليومي, الإعدادات). New tabs go in `SHOP_KEYS`:
+  المبيعات, حركات المخزون, الصندوق اليومي, الإعدادات, الإصلاح). New tabs go in `SHOP_KEYS`:
   existing sheets get them created on first use (`ensureShopTabs` in `store.ts`). Users tab: «المستخدمين» (`src/lib/users.ts`).
   Archive tabs: `src/lib/store.ts`.
 - Credit math (remaining per customer and per product, payment split, due
@@ -90,6 +91,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Product families (categories) | `components/CategoryForm.tsx`, `components/CategoryIcon.tsx`, `lib/image.ts` |
 | Stock search, cash drawer math, reports math | `lib/shop.ts` |
 | Cash drawer screen | `components/CaisseView.tsx` |
+| Repairs (الإصلاح): devices brought to repair (photo, owner, problem, price, advance, status, own barcode, sticker / image, WhatsApp received / ready); service `repairs` (server hides repairs from accounts without it, `ledgerFor`). On a repair `device` = the repaired device, the recording device is `origin` | `components/RepairsView.tsx`, `lib/repairs.ts` (pure, tested), `Repair` in `lib/ledger.ts`, photo `photoForCell` in `lib/image.ts` |
 | Reports screen | `components/ReportsView.tsx` |
 | Shop barcodes (EAN-13 starting with 2, new number) | `lib/barcode.ts` |
 | Sticker printing window (sizes, list, 🔄 / ⬇️, print pages) | `components/LabelPrint.tsx` |

@@ -43,13 +43,22 @@ export function sheetNames(names: string[]): string[] {
   });
 }
 
+/** Excel refuses to open a file with a cell over 32 767 characters. */
+export const EXCEL_CELL_MAX = 32_767;
+
+/** A text that fits one Excel cell: a too long picture is left out (it stays in the Google Sheet). */
+export function fitCell(s: string): string {
+  if (s.length <= EXCEL_CELL_MAX) return s;
+  return s.startsWith("data:image/") ? "(صورة كبيرة بزاف لـ Excel، كاينة فالـ Google Sheet)" : s.slice(0, EXCEL_CELL_MAX - 1) + "…";
+}
+
 function cellXml(ref: string, value: XlsxCell, header: boolean): string {
   const style = header ? ' s="1"' : "";
   if (value === null || value === undefined || value === "") return "";
   if (typeof value === "number" && Number.isFinite(value)) return `<c r="${ref}"${style}><v>${value}</v></c>`;
   if (typeof value === "boolean") return `<c r="${ref}"${style} t="b"><v>${value ? 1 : 0}</v></c>`;
   // Text keeps leading zeros (phones like 0661…) and is never turned into a date.
-  return `<c r="${ref}"${style} t="inlineStr"><is><t xml:space="preserve">${esc(String(value))}</t></is></c>`;
+  return `<c r="${ref}"${style} t="inlineStr"><is><t xml:space="preserve">${esc(fitCell(String(value)))}</t></is></c>`;
 }
 
 function sheetXml(rows: XlsxCell[][]): string {

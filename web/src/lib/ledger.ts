@@ -183,6 +183,37 @@ export interface CaisseClose {
   createdAt: string;
 }
 
+/** Where a device brought for repair is (الإصلاح). */
+export const REPAIR_STATUSES = ["مستلم", "فالإصلاح", "واجد", "تسلم", "ما تصلحش"] as const;
+export type RepairStatus = (typeof REPAIR_STATUSES)[number];
+
+/** A device brought by a customer to be repaired (tab الإصلاح). */
+export interface Repair {
+  id: string;
+  /** Its own barcode (EAN-13 starting with 2, like the shop's products), on the sticker stuck on the device. */
+  code: string;
+  /** When it was brought: yyyy-mm-dd, HH:mm. */
+  date: string;
+  time: string;
+  owner: string;
+  phone: string;
+  /** The device: «Samsung A15», «Machine à laver Candy»… */
+  device: string;
+  problem: string;
+  /** Agreed price of the repair, and the advance paid when it was brought. */
+  price: number;
+  advance: number;
+  status: RepairStatus;
+  notes: string;
+  /** Photo of the device as a small data: URL (fits one sheet cell), "" = none. */
+  photo: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Account and device that made the last change (see lib/change-origin.ts). */
+  by?: string;
+  origin?: string;
+}
+
 /** A shop-wide setting shared by every device (e.g. the default sticker look), as JSON text. */
 export interface Setting {
   key: string;
@@ -204,10 +235,11 @@ export interface Ledger {
   moves: StockMove[];
   closings: CaisseClose[];
   settings: Setting[];
+  repairs: Repair[];
 }
 
 export function emptyLedger(): Ledger {
-  return { clients: [], purchases: [], payments: [], changes: [], stock: [], categories: [], sales: [], moves: [], closings: [], settings: [] };
+  return { clients: [], purchases: [], payments: [], changes: [], stock: [], categories: [], sales: [], moves: [], closings: [], settings: [], repairs: [] };
 }
 
 export const EMPTY_LEDGER: Ledger = emptyLedger();
@@ -236,7 +268,7 @@ const ID_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I: easy to rea
  * "C-7K2QXM9A": prefix C (client), S (purchase), P (payment), T (instalment change), O (operation),
  * I (stock item), V (sale), M (stock move), K (cash drawer closing).
  */
-export type IdPrefix = "C" | "S" | "P" | "T" | "O" | "I" | "V" | "M" | "K";
+export type IdPrefix = "C" | "S" | "P" | "T" | "O" | "I" | "V" | "M" | "K" | "R";
 export function newLedgerId(prefix: IdPrefix): string {
   const bytes = new Uint8Array(8);
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) crypto.getRandomValues(bytes);
@@ -244,7 +276,7 @@ export function newLedgerId(prefix: IdPrefix): string {
   return `${prefix}-${Array.from(bytes, (b) => ID_CHARS[b % ID_CHARS.length]).join("")}`;
 }
 
-const ID_RE = /^[CSPTOIVMK]-[A-Z0-9]{4,16}$/;
+const ID_RE = /^[CSPTOIVMKR]-[A-Z0-9]{4,16}$/;
 export const isLedgerId = (s: unknown): s is string => typeof s === "string" && ID_RE.test(s);
 
 // ---------------------------------------------------------------- operations
@@ -276,6 +308,9 @@ type OpBody =
   | { type: "stock.adjust"; move: StockMove }
   | { type: "stock.delete"; id: string }
   | { type: "category.save"; category: Category }
+  | { type: "repair.add"; repair: Repair }
+  | { type: "repair.update"; id: string; base: string; patch: Partial<Omit<Repair, "id" | "createdAt" | "updatedAt" | "by" | "origin">> }
+  | { type: "repair.delete"; id: string }
   /** A shop-wide setting (key → JSON text), e.g. the default sticker look. */
   | { type: "setting.save"; key: string; value: string }
   /** Lines sold together; a credit sale also brings the purchases for the customer's account. */
@@ -367,6 +402,24 @@ function codeTaken(ledger: Ledger, codes: string[], exceptId: string): string | 
     if (hit) return `«${hit}» مستعمل ديجا فـ «${s.item}»`;
   }
   return undefined;
+}
+
+/** Photo of a repaired device: a small data: URL that fits one sheet cell, and one Excel cell (backup). */
+export const MAX_PHOTO_LENGTH = 32_000;
+
+function checkRepair(r: Repair, ledger: Ledger): string | null {
+  if (!isLedgerId(r.id) || !r.id.startsWith("R-")) return "رقم الإصلاح غير صحيح";
+  if (!/^2\d{12}$/.test(r.code)) return "الباركود ديال الإصلاح غير صحيح";
+  if (!date(r.date) || !r.date || !time(r.time)) return "التاريخ ولا الساعة غير صحيحين";
+  if (!text(r.owner, 200) || !r.owner.trim()) return "سمية مول الجهاز ضرورية";
+  if (!text(r.phone, 40) || !text(r.device, 200) || !r.device.trim() || !text(r.problem, 1000) || !text(r.notes, 1000)) return "معلومات الإصلاح غير صحيحة";
+  if (!money(r.price) || !money(r.advance)) return "الثمن ولا التسبيق غير صحيح";
+  if (!REPAIR_STATUSES.includes(r.status)) return "الحالة غير صحيحة";
+  if (typeof r.photo !== "string" || r.photo.length > MAX_PHOTO_LENGTH || (r.photo && !/^data:image\/(jpeg|webp|png);base64,/.test(r.photo))) return "الصورة غير صحيحة ولا كبيرة بزاف";
+  // A repair's barcode never matches a product or another repair.
+  const taken = codeTaken(ledger, [r.code], "") ?? ledger.repairs.find((x) => x.id !== r.id && x.code === r.code)?.device;
+  if (taken) return `الباركود «${r.code}» مستعمل ديجا`;
+  return null;
 }
 
 function checkStock(s: StockItem): string | null {
@@ -592,6 +645,30 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
       if (old && old.description === clean.description && old.marginTarget === clean.marginTarget && old.icon === clean.icon) return { ledger, result: "already" };
       const categories = old ? ledger.categories.map((x) => (x.name === clean.name ? clean : x)) : [...ledger.categories, clean];
       return { ledger: { ...ledger, categories }, result: "ok" };
+    }
+    case "repair.add": {
+      const r = op.repair;
+      if (!r || typeof r !== "object") return invalid(ledger, "الإصلاح غير صحيح");
+      if (ledger.repairs.some((x) => x.id === r.id)) return { ledger, result: "already" };
+      const next: Repair = { ...r, notes: r.notes ?? "", photo: r.photo ?? "", updatedAt: op.at, by: op.by ?? "", origin: op.device ?? "" };
+      const err = checkRepair(next, ledger);
+      if (err) return invalid(ledger, err);
+      return { ledger: { ...ledger, repairs: [...ledger.repairs, next] }, result: "ok" };
+    }
+    case "repair.update": {
+      const r = ledger.repairs.find((x) => x.id === op.id);
+      if (!r) return invalid(ledger, "هاد الإصلاح ما بقاش");
+      if (r.updatedAt === op.at) return { ledger, result: "already" };
+      if (r.updatedAt !== op.base) return { ledger, result: "conflict", message: CONFLICT };
+      const fields: (keyof Repair)[] = ["date", "time", "owner", "phone", "device", "problem", "price", "advance", "status", "notes", "photo"];
+      const next: Repair = { ...r, ...pick<Repair>(op.patch, fields), updatedAt: op.at, by: op.by ?? "", origin: op.device ?? "" };
+      const err = checkRepair(next, ledger);
+      if (err) return invalid(ledger, err);
+      return { ledger: { ...ledger, repairs: replace(ledger.repairs, r.id, next) }, result: "ok" };
+    }
+    case "repair.delete": {
+      if (!ledger.repairs.some((x) => x.id === op.id)) return { ledger, result: "already" };
+      return { ledger: { ...ledger, repairs: ledger.repairs.filter((x) => x.id !== op.id) }, result: "ok" };
     }
     case "setting.save": {
       if (typeof op.key !== "string" || !/^[a-z0-9-]{1,40}$/.test(op.key) || typeof op.value !== "string" || op.value.length > 20_000) {
