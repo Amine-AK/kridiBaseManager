@@ -406,7 +406,11 @@ The cash drawer (💰 الصندوق) and the reports (📊 التقارير) ar
 
 ### 🔧 الإصلاح (repairs)
 
-A separate tab for devices customers bring to be repaired. **＋ إصلاح جديد**:
+A separate tab for devices customers bring to be repaired. In **＋ إصلاح جديد**,
+type the phone number first: if it is a customer's (any of their numbers, any
+format) or someone who brought a repair before, their name fills in by itself
+(from the data on the device, no internet needed; a name you typed is never
+replaced, a «استعمل» link offers it instead). The form:
 📷 photo of the device (shrunk to fit one sheet cell), owner's name and phone,
 the device, the problem, the repair price and the advance (التسبيق), date and
 time (now by default). Each repair gets **its own barcode** (EAN-13 starting with

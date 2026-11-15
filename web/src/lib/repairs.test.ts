@@ -4,7 +4,7 @@ import { applyOp, EMPTY_LEDGER, type LedgerOp, type Repair, type StockItem } fro
 import { ledgerToRows, rowsToLedger } from "./ledger-sheet";
 import { ledgerFor, opAllowed } from "./permissions";
 import { cashDay } from "./shop";
-import { deliveredMessage, repairProfit, repairReceived, newRepairCode, readyMessage, receivedMessage, repairByCode, repairRemaining, searchRepairs } from "./repairs";
+import { ownerForPhone, deliveredMessage, repairProfit, repairReceived, newRepairCode, readyMessage, receivedMessage, repairByCode, repairRemaining, searchRepairs } from "./repairs";
 import type { Me } from "./roles";
 
 const T0 = "2026-11-15T09:00:00.000Z";
@@ -116,5 +116,17 @@ describe("repairs", () => {
     expect(deliveredMessage(r)).toContain("✅ الإصلاح خالص.");
     const rows = ledgerToRows(l);
     expect(rowsToLedger({ repairs: [...rows.repairs.values()] }).repairs).toEqual(l.repairs);
+  });
+
+  it("finds the owner's name from the phone number, in any format", () => {
+    const T = "2026-11-01T00:00:00.000Z";
+    const client = { id: "C-AMINE001", name: "Amine jari", phone: "0661234567", phones: ["0700112233"], installment: 0, period: "", nextDueDate: "", notes: "", createdAt: T, updatedAt: T };
+    const ledger = { clients: [client], repairs: [repair({ owner: "مريم", phone: "+212 662 345 678", createdAt: T })] } as never;
+    expect(ownerForPhone("0661234567", ledger)).toEqual({ name: "Amine jari", from: "client" });
+    expect(ownerForPhone("+212 661-23-45-67", ledger)).toEqual({ name: "Amine jari", from: "client" });
+    expect(ownerForPhone("00212700112233", ledger)).toEqual({ name: "Amine jari", from: "client" }); // their other number
+    expect(ownerForPhone("0662345678", ledger)).toEqual({ name: "مريم", from: "repair" }); // not a customer, came for a repair
+    expect(ownerForPhone("06612", ledger)).toBeNull(); // not complete yet
+    expect(ownerForPhone("0699999999", ledger)).toBeNull();
   });
 });
