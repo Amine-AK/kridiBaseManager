@@ -11,6 +11,8 @@ customer credit (الكريدي), cash and credit sales, stock with the shop's o
 barcodes and sticker printing, the daily cash drawer, reports, and WhatsApp
 reminders. Installable PWA, used on phones and the shop PC, works offline.
 
+- GitHub repository: `Amine-AK/kridiBaseManager` (renamed from `whatsappMustapha`;
+  the old name still redirects, the session's tools may still use it).
 - **The live app is `web/`** (Next.js 16 App Router, React 19, TypeScript, no
   UI framework, plain CSS). Deployed on **Vercel** from `main` (root dir `web`).
 - **Database = one Google Sheet** (Sheets REST API, service account), one tab
@@ -35,9 +37,11 @@ reminders. Installable PWA, used on phones and the shop PC, works offline.
 - Comments explain *why*, short, in plain English. Keep files' existing style.
 - Every user-visible number on phones: `<bdi dir="ltr">` around codes / digits.
 - Per-device settings go in `localStorage` (try/catch every access). Keys in use:
-  `view`, `theme`, `label-setup`, `label-size`, `label-price`, `receipt-paper`,
-  `scanner-camera`, `backup-last`, `backup-snooze`, `ledger-queue`,
-  `ledger-snapshot`, `device-id`, `label-print-test` (old, migrated).
+  `theme`, `label-setup`, `label-size`, `label-price`, `receipt-paper`,
+  `scanner-camera`, `backup-last`, `backup-snooze`, `device-id`,
+  `label-print-test` (old, migrated). The ledger snapshot and the queue of
+  unsent ops are in IndexedDB (`ledger-snapshot`, `ledger-queue`).
+  Per tab (`sessionStorage`): `view` (main tab), `budget-tab` (الصندوق / التقارير).
 
 ## Data flow (credit + shop ledger)
 
@@ -70,11 +74,17 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 - Sheet layout (tab names, columns, row ↔ object): `src/lib/ledger-sheet.ts`
   (`TABS`: الزبناء, المشتريات, الدفعات, تغييرات الطريطة, المخزون, الفئات,
   المبيعات, حركات المخزون, الصندوق اليومي, الإعدادات, الإصلاح). New tabs go in `SHOP_KEYS`:
-  existing sheets get them created on first use (`ensureShopTabs` in `store.ts`). Users tab: «المستخدمين» (`src/lib/users.ts`).
+  existing sheets get them created on first use (`ensureShopTabs` in `store.ts`).
+  **New columns always go at the end of a tab** (old rows keep their positions;
+  the header check in `ensureShopTabs` adds the new titles); reading a missing
+  cell gives "" / 0, so older rows still load. Users tab: «المستخدمين» (`src/lib/users.ts`).
   Archive tabs: `src/lib/store.ts`.
 - Credit math (remaining per customer and per product, payment split, due
   status): `summarizeClient`, `itemStatuses`, `paymentSplit` in `src/lib/ledger.ts`.
   A payment bigger than what is left on its product spills to the oldest unpaid products.
+  Receipts and the full-account WhatsApp message (`statement` in `lib/receipt.ts`)
+  list, payment by payment, what each one really paid on each product
+  («*280 درهم* (من 500 درهم)», «الباقي من دفعة «…»», «دفعة عامة»).
 
 ## Where to change what
 
@@ -90,8 +100,8 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Stock list, product form (codes, barcode popup), quantity ±, unknown scanned code, category chips | `components/StockView.tsx` (StockForm, AdjustForm, UnknownCode inside) |
 | Product families (categories) | `components/CategoryForm.tsx`, `components/CategoryIcon.tsx`, `lib/image.ts` |
 | Stock search, cash drawer math, reports math | `lib/shop.ts` |
-| Cash drawer screen, in الميزانية (cash sales + credit advances + instalments + repairs: advance on the day brought, `paid` on the day collected) | `components/CaisseView.tsx`, `cashDay` in `lib/shop.ts` |
-| Repairs (الإصلاح): devices brought to repair (photo, owner, problem, price, advance, status, own barcode, sticker / image, WhatsApp received / ready / delivered; 🤝 تسلم opens `DeliverDialog`: delivered date / time, final price, `paid` then, shop `cost`; profit for `seesCost`); service `repairs` (server hides repairs from accounts without it, `ledgerFor`). On a repair `device` = the repaired device, the recording device is `origin` | `components/RepairsView.tsx`, `lib/repairs.ts` (pure, tested), `Repair` in `lib/ledger.ts`, photo `photoForCell` in `lib/image.ts` |
+| Cash drawer screen, in الميزانية (cash sales + credit advances + instalments + repairs: advance on the day brought, `paid` on the day collected; closing saves `CaisseClose.repairs`, column «تسبيقات الإصلاح»). Shop costs of a repair are NOT taken out of the drawer (entered as expenses at closing) | `components/CaisseView.tsx`, `cashDay` in `lib/shop.ts` |
+| Repairs (الإصلاح): devices brought to repair (photo, owner, problem, price, advance, status, own barcode, sticker / image, WhatsApp received / ready / delivered; 🤝 تسلم opens `DeliverDialog`: delivered date / time, final price, `paid` then, shop `cost`; profit for `seesCost`); service `repairs` (server hides repairs from accounts without it, `ledgerFor`; an account with «الصندوق» but not «الإصلاح» gets the repairs with money only, no owner / phone / problem / photo). On a repair `device` = the repaired device, the recording device is `origin` | `components/RepairsView.tsx`, `lib/repairs.ts` (pure, tested), `Repair` in `lib/ledger.ts`, photo `photoForCell` in `lib/image.ts` |
 | Reports screen | `components/ReportsView.tsx` |
 | Shop barcodes (EAN-13 starting with 2, new number) | `lib/barcode.ts` |
 | Sticker printing window (sizes, list, 🔄 / ⬇️, print pages) | `components/LabelPrint.tsx` |
@@ -110,7 +120,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Offline / PWA | `public/sw.js` (cache version `VERSION`), `components/RegisterServiceWorker.tsx`, `components/InstallButton.tsx`, `app/manifest.ts`, `lib/idb.ts` |
 | Sync state bar, refused changes (who / device / what differs, filtered by permissions) | `components/SyncBar.tsx`, `lib/change-origin.ts` |
 | Header menu (backup, theme, logout) | `components/TopMenu.tsx`; theme `lib/theme.ts` |
-| Excel backup | `lib/xlsx.ts`, `lib/backup.ts`, `components/BackupDialog.tsx`, `app/api/export` |
+| Excel backup (every tab except users; each cell kept under Excel's 32 767 chars by `fitCell`, so pictures stay ≤ 32 000: `MAX_PHOTO_LENGTH`) | `lib/xlsx.ts`, `lib/backup.ts`, `components/BackupDialog.tsx`, `app/api/export` |
 | Archive (old customers) | `components/ArchiveView.tsx`, `app/api/archive/*`, `lib/store.ts` |
 | Sheets API client / env vars | `lib/sheets.ts`, `lib/env.ts` |
 | Modals (full screen on phones, back button) | `components/Modal.tsx`; shared bits `components/ui.tsx` (`Field`, `Confirm`, `parseAmount`) |
@@ -128,6 +138,12 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 - `session.ts`: frame loop (`requestVideoFrameCallback`, drop frames while busy), pause, hint, cleanup.
 - The `.wasm` is copied by `web/scripts/copy-zxing-wasm.mjs` (postinstall / predev / prebuild) into
   `web/public/scanner/` (git-ignored).
+
+## Planned, not now
+
+- **Operating costs (تكاليف التشغيل)** will go in a future «معلومات المحل»
+  (shop info) section and feed the budget / reports. The owner asked to wait:
+  don't add them until asked.
 
 ## Environment variables (server)
 
