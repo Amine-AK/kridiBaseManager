@@ -104,10 +104,17 @@ const LABELS: Record<string, string> = {
   kind: "النوع",
   purchaseId: "السلعة",
   clientId: "الزبون",
+  owner: "مول الجهاز",
+  device: "الجهاز",
+  problem: "المشكل",
+  advance: "التسبيق",
+  status: "الحالة",
+  photo: "الصورة",
 };
-const MONEY = new Set(["buyPrice", "sellPrice", "price", "amount", "installment"]);
+const MONEY = new Set(["buyPrice", "sellPrice", "price", "amount", "installment", "advance"]);
 
 function show(key: string, v: unknown): string {
+  if (key === "photo") return v ? "📷" : "—";
   if (Array.isArray(v)) return v.join("، ") || "—";
   if (typeof v === "number") return MONEY.has(key) ? money(v) : String(v);
   return v === undefined || v === null || v === "" ? "—" : String(v);
@@ -118,6 +125,7 @@ const EDITS = new Set<LedgerOp["type"]>([
   "stock.update", "stock.delete", "stock.adjust",
   "client.update", "client.delete", "client.installment",
   "purchase.update", "purchase.delete", "payment.update", "payment.delete",
+  "repair.update", "repair.delete",
 ]);
 
 /** The record an edit was for, in the ledger as it is now. */
@@ -139,6 +147,9 @@ function target(op: LedgerOp, ledger: Ledger): Record<string, unknown> | undefin
     case "payment.update":
     case "payment.delete":
       return find(ledger.payments, op.id);
+    case "repair.update":
+    case "repair.delete":
+      return find(ledger.repairs, op.id);
     default:
       return undefined;
   }
@@ -163,7 +174,9 @@ export function conflictDetails(op: LedgerOp, ledger: Ledger, seeCost: boolean):
   if (op.type === "stock.adjust" && op.move) {
     changes.push({ label: "الكمية", mine: `${op.move.delta > 0 ? "+" : ""}${op.move.delta}`, now: show("quantity", rec.quantity) });
   }
-  return { who: typeof rec.by === "string" ? rec.by : "", device: typeof rec.device === "string" ? rec.device : "", when, changes, gone: false };
+  // On a repair, `device` is the repaired device: where the change came from is `origin`.
+  const from = op.type.startsWith("repair.") ? rec.origin : rec.device;
+  return { who: typeof rec.by === "string" ? rec.by : "", device: typeof from === "string" ? from : "", when, changes, gone: false };
 }
 
 /** ISO time → «14/11/2026 - 07:43» in shop time. */

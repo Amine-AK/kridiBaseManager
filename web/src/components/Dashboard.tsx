@@ -19,6 +19,7 @@ import { ReportsView } from "./ReportsView";
 import { SaleForm, type SaleDone } from "./SaleForm";
 import { SaleTicketDialog } from "./SaleTicket";
 import { StockView } from "./StockView";
+import { RepairsView } from "./RepairsView";
 import { ClientDetail } from "./ClientDetail";
 import { InstallButton } from "./InstallButton";
 import { NewClientForm } from "./ClientForms";
@@ -71,12 +72,13 @@ type Dialog =
   | { kind: "users" }
   | null;
 
-type View = "credit" | "sell" | "stock" | "caisse" | "reports";
+type View = "credit" | "sell" | "stock" | "repairs" | "caisse" | "reports";
 
 const VIEWS: { value: View; icon: string; label: string }[] = [
   { value: "credit", icon: "📒", label: "الكريدي" },
   { value: "sell", icon: "🛒", label: "البيع" },
   { value: "stock", icon: "📦", label: "المخزون" },
+  { value: "repairs", icon: "🔧", label: "الإصلاح" },
   { value: "caisse", icon: "💰", label: "الصندوق" },
   { value: "reports", icon: "📊", label: "التقارير" },
 ];
@@ -91,6 +93,7 @@ function viewsFor(me: Me | null): typeof VIEWS {
       v.value === "credit" ||
       (v.value === "sell" && (can(me, "sell_cash") || can(me, "sell_credit"))) ||
       (v.value === "stock" && can(me, "stock")) ||
+      (v.value === "repairs" && can(me, "repairs")) ||
       (v.value === "caisse" && can(me, "caisse")) ||
       (v.value === "reports" && can(me, "reports")),
   );
@@ -287,6 +290,7 @@ export function Dashboard() {
           </section>
         )}
         {current === "stock" && data.ledger && <StockView data={data} onToast={setToast} />}
+        {current === "repairs" && data.ledger && <RepairsView data={data} onToast={setToast} />}
         {current === "caisse" && data.ledger && <CaisseView data={data} onToast={setToast} />}
         {current === "reports" && data.ledger && <ReportsView data={data} onToast={setToast} />}
 

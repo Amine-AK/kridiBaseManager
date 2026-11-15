@@ -399,6 +399,23 @@ preview draws the sticker's edge (red dashes) and the space inside the margins.
   4. Receipt printer driver (*Printing preferences*): turn off the automatic
      cut and the paper feed after printing.
 
+### 🔧 الإصلاح (repairs)
+
+A separate tab for devices customers bring to be repaired. **＋ إصلاح جديد**:
+📷 photo of the device (shrunk to fit one sheet cell), owner's name and phone,
+the device, the problem, the repair price and the advance (التسبيق), date and
+time (now by default). Each repair gets **its own barcode** (EAN-13 starting with
+2, never the same as a product or another repair): **🖨️ طبع الملصق** prints it
+with the shop's default sticker look, **⬇️ صورة** saves it as an image. Stick it
+on the device; scanning it (USB scanner or 📷 سكاني) opens the repair.
+Statuses: 📥 مستلم → 🔧 فالإصلاح → ✅ واجد → 🤝 تسلم (or ❌ ما تصلحش). WhatsApp
+buttons send the owner a drop-off receipt («📲 وصل الاستلام») and, when ready,
+«📲 خبرو أنه واجد» with what is left to pay. The list shows what is in the shop
+(default), what is ready, or everything; search by name, phone, device or
+barcode. Saved in the sheet tab «الإصلاح». Service **🔧 الإصلاح** in the users
+window: without it a seller doesn't see the tab, and the server doesn't send
+repairs (customers' phones) to their device.
+
 ### Who changed a product, and refused changes
 
 Every change says which account made it (stamped by the server) and from which

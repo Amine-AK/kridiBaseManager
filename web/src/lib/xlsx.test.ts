@@ -1,6 +1,6 @@
 import { inflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { buildXlsx, columnName, crc32, sheetNames } from "./xlsx";
+import { buildXlsx, columnName, crc32, EXCEL_CELL_MAX, fitCell, sheetNames } from "./xlsx";
 
 /** Files inside the zip, read back through the central directory. */
 function unzip(buf: Buffer): Record<string, string> {
@@ -45,5 +45,11 @@ describe("Excel backup", () => {
     // The phone keeps its leading 0; the amount stays a number.
     expect(sheet).toContain('<c r="C2" t="inlineStr"><is><t xml:space="preserve">0661234567</t></is></c>');
     expect(sheet).toContain('<c r="D2"><v>1500.5</v></c>');
+  });
+
+  it("keeps every cell small enough for Excel", () => {
+    expect(fitCell("abc")).toBe("abc");
+    expect(fitCell("data:image/webp;base64," + "A".repeat(40_000))).toContain("صورة كبيرة بزاف");
+    expect(fitCell("x".repeat(40_000))).toHaveLength(EXCEL_CELL_MAX);
   });
 });

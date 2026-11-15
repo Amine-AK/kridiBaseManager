@@ -13,6 +13,9 @@ import {
   type Payment,
   type PaymentKind,
   type Setting,
+  type Repair,
+  type RepairStatus,
+  REPAIR_STATUSES,
   type Purchase,
   type Sale,
   type StockItem,
@@ -31,10 +34,11 @@ export const TABS = {
   moves: "حركات المخزون",
   closings: "الصندوق اليومي",
   settings: "الإعدادات",
+  repairs: "الإصلاح",
 } as const;
 
 /** Tabs added with the shop features: created on their own in sheets set up before them. */
-export const SHOP_KEYS = ["stock", "categories", "sales", "moves", "closings", "settings"] as const;
+export const SHOP_KEYS = ["stock", "categories", "sales", "moves", "closings", "settings", "repairs"] as const;
 
 export const DEFAULT_CATEGORIES: Category[] = [
   { name: "كهرومنزلي كبير", description: "ثلاجات، غسالات، كليماتيزورات، فرنات…", marginTarget: 15, icon: "🧊" },
@@ -65,6 +69,11 @@ export const HEADERS: Record<TableKey, string[]> = {
   stock: ["رقم السلعة", "السلعة", "الفئة", "الحالة", "ثمن الشراء", "ثمن البيع", "الكمية", "الكود (QR / باركود / S/N)", "ملاحظات", "تاريخ الإضافة", "آخر تعديل", "أكواد أخرى (موردين آخرين)", "آخر تعديل من", "الجهاز"],
   categories: ["الفئة", "الوصف", "هامش الربح المستهدف %", "الأيقونة"],
   settings: ["المفتاح", "القيمة (JSON)", "آخر تعديل"],
+  repairs: [
+    "رقم الإصلاح", "الباركود", "التاريخ", "الساعة", "مول الجهاز", "الهاتف", "الجهاز", "المشكل",
+    "ثمن الإصلاح", "التسبيق", "الباقي", "الحالة", "ملاحظات", "تاريخ الإضافة", "آخر تعديل",
+    "آخر تعديل من", "جهاز التسجيل", "الصورة",
+  ],
   sales: [
     "رقم البيع", "رقم التيكي", "التاريخ", "الساعة", "السلعة", "الفئة", "رقم السلعة فالمخزون", "الكمية",
     "ثمن الشراء", "الثمن المقترح", "ثمن البيع", "الربح", "النوع", "رقم الزبون", "الزبون", "رقم العملية",
@@ -190,6 +199,31 @@ export function rowToSetting(r: unknown[]): Setting | null {
   return key ? { key, value: s(r[1]), updatedAt: s(r[2]) } : null;
 }
 
+export function rowToRepair(r: unknown[]): Repair | null {
+  const id = s(r[0]);
+  if (!id) return null;
+  const status = s(r[11]) as RepairStatus;
+  return {
+    id,
+    code: s(r[1]),
+    date: s(r[2]),
+    time: s(r[3]),
+    owner: s(r[4]),
+    phone: s(r[5]),
+    device: s(r[6]),
+    problem: s(r[7]),
+    price: n(r[8]),
+    advance: n(r[9]),
+    status: REPAIR_STATUSES.includes(status) ? status : "مستلم",
+    notes: s(r[12]),
+    createdAt: s(r[13]),
+    updatedAt: s(r[14]),
+    by: s(r[15]),
+    origin: s(r[16]),
+    photo: s(r[17]),
+  };
+}
+
 export function rowToSale(r: unknown[]): Sale | null {
   const id = s(r[0]);
   if (!id) return null;
@@ -255,6 +289,7 @@ export function rowsToLedger(tables: Partial<Record<TableKey, unknown[][]>>): Le
     moves: rows("moves").map(rowToMove).filter(keep),
     closings: rows("closings").map(rowToClosing).filter(keep),
     settings: rows("settings").map(rowToSetting).filter(keep),
+    repairs: rows("repairs").map(rowToRepair).filter(keep),
   };
 }
 
@@ -326,7 +361,16 @@ export function ledgerToRows(ledger: Ledger, today = todayISO()): Record<TableKe
     ]),
   );
   const settings = new Map<string, Cell[]>(ledger.settings.map((x) => [x.key, [x.key, x.value, x.updatedAt]]));
-  return { clients, purchases, payments, changes, stock, categories, sales, moves, closings, settings };
+  const repairs = new Map<string, Cell[]>(
+    ledger.repairs.map((x) => [
+      x.id,
+      [
+        x.id, x.code, x.date, x.time, x.owner, x.phone, x.device, x.problem, x.price, x.advance, round2(Math.max(0, x.price - x.advance)),
+        x.status, x.notes, x.createdAt, x.updatedAt, x.by ?? "", x.origin ?? "", x.photo,
+      ],
+    ]),
+  );
+  return { clients, purchases, payments, changes, stock, categories, sales, moves, closings, settings, repairs };
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
