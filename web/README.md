@@ -399,6 +399,11 @@ preview draws the sticker's edge (red dashes) and the space inside the margins.
   4. Receipt printer driver (*Printing preferences*): turn off the automatic
      cut and the paper feed after printing.
 
+### 💼 الميزانية
+
+The cash drawer (💰 الصندوق) and the reports (📊 التقارير) are one tab,
+«💼 الميزانية», with a switch at the top (only the parts the account may open).
+
 ### 🔧 الإصلاح (repairs)
 
 A separate tab for devices customers bring to be repaired. **＋ إصلاح جديد**:
@@ -408,7 +413,14 @@ time (now by default). Each repair gets **its own barcode** (EAN-13 starting wit
 2, never the same as a product or another repair): **🖨️ طبع الملصق** prints it
 with the shop's default sticker look, **⬇️ صورة** saves it as an image. Stick it
 on the device; scanning it (USB scanner or 📷 سكاني) opens the repair.
-Statuses: 📥 مستلم → 🔧 فالإصلاح → ✅ واجد → 🤝 تسلم (or ❌ ما تصلحش). WhatsApp
+Statuses: 📥 مستلم → 🔧 فالإصلاح → ✅ واجد → 🤝 تسلم (or ❌ ما تصلحش).
+**🤝 تسلم** asks when the owner collected it, the **final price** (the first
+estimate may be wrong), **what they paid then** (counted in that day's cash
+drawer) and the **shop's costs** (parts or extra work not charged to the
+customer); the repair then shows what is left, and the profit (received − costs)
+for accounts that see costs, and «📲 وصل التسليم» sends the owner the receipt.
+Moving a collected device back to another status asks first and takes the
+delivery payment back out of the drawer. WhatsApp
 buttons send the owner a drop-off receipt («📲 وصل الاستلام») and, when ready,
 «📲 خبرو أنه واجد» with what is left to pay. The list shows what is in the shop
 (default), what is ready, or everything; search by name, phone, device or

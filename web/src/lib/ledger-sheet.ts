@@ -72,7 +72,7 @@ export const HEADERS: Record<TableKey, string[]> = {
   repairs: [
     "رقم الإصلاح", "الباركود", "التاريخ", "الساعة", "مول الجهاز", "الهاتف", "الجهاز", "المشكل",
     "ثمن الإصلاح", "التسبيق", "الباقي", "الحالة", "ملاحظات", "تاريخ الإضافة", "آخر تعديل",
-    "آخر تعديل من", "جهاز التسجيل", "الصورة",
+    "آخر تعديل من", "جهاز التسجيل", "الصورة", "تاريخ التسليم", "ساعة التسليم", "خلص عند التسليم", "تكاليف المحل",
   ],
   sales: [
     "رقم البيع", "رقم التيكي", "التاريخ", "الساعة", "السلعة", "الفئة", "رقم السلعة فالمخزون", "الكمية",
@@ -221,6 +221,10 @@ export function rowToRepair(r: unknown[]): Repair | null {
     by: s(r[15]),
     origin: s(r[16]),
     photo: s(r[17]),
+    deliveredDate: d(r[18]),
+    deliveredTime: s(r[19]) ? t(r[19]) : "",
+    paid: n(r[20]),
+    cost: n(r[21]),
   };
 }
 
@@ -366,8 +370,8 @@ export function ledgerToRows(ledger: Ledger, today = todayISO()): Record<TableKe
     ledger.repairs.map((x) => [
       x.id,
       [
-        x.id, x.code, x.date, x.time, x.owner, x.phone, x.device, x.problem, x.price, x.advance, round2(Math.max(0, x.price - x.advance)),
-        x.status, x.notes, x.createdAt, x.updatedAt, x.by ?? "", x.origin ?? "", x.photo,
+        x.id, x.code, x.date, x.time, x.owner, x.phone, x.device, x.problem, x.price, x.advance, round2(Math.max(0, x.price - x.advance - x.paid)),
+        x.status, x.notes, x.createdAt, x.updatedAt, x.by ?? "", x.origin ?? "", x.photo, x.deliveredDate, x.deliveredTime, x.paid, x.cost,
       ],
     ]),
   );

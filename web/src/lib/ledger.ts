@@ -202,9 +202,15 @@ export interface Repair {
   /** The device: «Samsung A15», «Machine à laver Candy»… */
   device: string;
   problem: string;
-  /** Agreed price of the repair, and the advance paid when it was brought. */
+  /** Price of the repair (first estimate; corrected when the device is given back), and the advance paid when it was brought. */
   price: number;
   advance: number;
+  /** When the owner collected it ("" while still in the shop) and what they paid then. */
+  deliveredDate: string;
+  deliveredTime: string;
+  paid: number;
+  /** What the repair cost the shop (parts, extra work not charged to the customer). */
+  cost: number;
   status: RepairStatus;
   notes: string;
   /** Photo of the device as a small data: URL (fits one sheet cell), "" = none. */
@@ -415,7 +421,9 @@ function checkRepair(r: Repair, ledger: Ledger): string | null {
   if (!date(r.date) || !r.date || !time(r.time)) return "التاريخ ولا الساعة غير صحيحين";
   if (!text(r.owner, 200) || !r.owner.trim()) return "سمية مول الجهاز ضرورية";
   if (!text(r.phone, 40) || !text(r.device, 200) || !r.device.trim() || !text(r.problem, 1000) || !text(r.notes, 1000)) return "معلومات الإصلاح غير صحيحة";
-  if (!money(r.price) || !money(r.advance)) return "الثمن ولا التسبيق غير صحيح";
+  if (!money(r.price) || !money(r.advance) || !money(r.paid) || !money(r.cost)) return "الثمن، التسبيق، الخلاص ولا التكاليف غير صحيح";
+  if (!date(r.deliveredDate) || (r.deliveredTime !== "" && !time(r.deliveredTime))) return "تاريخ التسليم غير صحيح";
+  if (r.status === "تسلم" && !r.deliveredDate) return "تاريخ التسليم ضروري";
   if (!REPAIR_STATUSES.includes(r.status)) return "الحالة غير صحيحة";
   if (typeof r.photo !== "string" || r.photo.length > MAX_PHOTO_LENGTH || (r.photo && !/^data:image\/(jpeg|webp|png);base64,/.test(r.photo))) return "الصورة غير صحيحة ولا كبيرة بزاف";
   // A repair's barcode never matches a product or another repair.
@@ -652,7 +660,18 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
       const r = op.repair;
       if (!r || typeof r !== "object") return invalid(ledger, "الإصلاح غير صحيح");
       if (ledger.repairs.some((x) => x.id === r.id)) return { ledger, result: "already" };
-      const next: Repair = { ...r, notes: r.notes ?? "", photo: r.photo ?? "", updatedAt: op.at, by: op.by ?? "", origin: op.device ?? "" };
+      const next: Repair = {
+        ...r,
+        notes: r.notes ?? "",
+        photo: r.photo ?? "",
+        deliveredDate: r.deliveredDate ?? "",
+        deliveredTime: r.deliveredTime ?? "",
+        paid: r.paid ?? 0,
+        cost: r.cost ?? 0,
+        updatedAt: op.at,
+        by: op.by ?? "",
+        origin: op.device ?? "",
+      };
       const err = checkRepair(next, ledger);
       if (err) return invalid(ledger, err);
       return { ledger: { ...ledger, repairs: [...ledger.repairs, next] }, result: "ok" };
@@ -662,7 +681,7 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
       if (!r) return invalid(ledger, "هاد الإصلاح ما بقاش");
       if (r.updatedAt === op.at) return { ledger, result: "already" };
       if (r.updatedAt !== op.base) return { ledger, result: "conflict", message: CONFLICT };
-      const fields: (keyof Repair)[] = ["date", "time", "owner", "phone", "device", "problem", "price", "advance", "status", "notes", "photo"];
+      const fields: (keyof Repair)[] = ["date", "time", "owner", "phone", "device", "problem", "price", "advance", "status", "notes", "photo", "deliveredDate", "deliveredTime", "paid", "cost"];
       const next: Repair = { ...r, ...pick<Repair>(op.patch, fields), updatedAt: op.at, by: op.by ?? "", origin: op.device ?? "" };
       const err = checkRepair(next, ledger);
       if (err) return invalid(ledger, err);

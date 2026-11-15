@@ -124,8 +124,8 @@ export interface CashDay {
   cashSales: Sale[];
   advances: Payment[];
   installments: Payment[];
-  /** Repairs brought that day with an advance (تسبيق الإصلاح). */
-  repairs: Repair[];
+  /** Money for repairs that day: advances of devices brought, and what was paid when collecting them. */
+  repairs: { id: string; repairId: string; kind: "advance" | "paid"; device: string; time: string; amount: number }[];
   totals: { cashSales: number; advances: number; installments: number; repairs: number; incoming: number };
   /**
    * Recorded that day but dated up to a week earlier: money that may be missing
@@ -141,7 +141,8 @@ const sum = (list: { amount?: number; sellPrice?: number }[]) => round2(list.red
 /**
  * Money that came into the drawer on `date`:
  * cash sales + credit advances (تسبيق) + instalments (دفعة) + repair advances
- * (تسبيق الإصلاح, on the day the device was brought). Expenses come off at closing.
+ * (تسبيق الإصلاح, on the day the device was brought) + what was paid when a
+ * repaired device was collected (on that day). Expenses come off at closing.
  */
 export function cashDay(ledger: Ledger, date: string): CashDay {
   const names = new Map(ledger.clients.map((c) => [c.id, c.name]));
@@ -149,8 +150,14 @@ export function cashDay(ledger: Ledger, date: string): CashDay {
   const payments = ledger.payments.filter((p) => p.date === date);
   const advances = payments.filter((p) => p.kind === "تسبيق");
   const installments = payments.filter((p) => p.kind === "دفعة");
-  const repairs = (ledger.repairs ?? []).filter((r) => r.date === date && r.advance > 0);
-  const repairsTotal = round2(repairs.reduce((t, r) => t + r.advance, 0));
+  const all: Repair[] = ledger.repairs ?? [];
+  const repairs: CashDay["repairs"] = [
+    ...all.filter((r) => r.date === date && r.advance > 0).map((r) => ({ id: `${r.id}:a`, repairId: r.id, kind: "advance" as const, device: r.device, time: r.time, amount: r.advance })),
+    ...all
+      .filter((r) => r.deliveredDate === date && r.paid > 0)
+      .map((r) => ({ id: `${r.id}:p`, repairId: r.id, kind: "paid" as const, device: r.device, time: r.deliveredTime, amount: r.paid })),
+  ];
+  const repairsTotal = round2(repairs.reduce((t, r) => t + r.amount, 0));
   const totals = { cashSales: sum(cashSales), advances: sum(advances), installments: sum(installments), repairs: repairsTotal, incoming: 0 };
   totals.incoming = round2(totals.cashSales + totals.advances + totals.installments + totals.repairs);
   const weekBefore = addDays(date, -7);
@@ -162,9 +169,12 @@ export function cashDay(ledger: Ledger, date: string): CashDay {
     ...ledger.payments
       .filter((p) => late(p.date, p.createdAt))
       .map((p) => ({ kind: "payment" as const, id: p.id, label: `${p.kind} · ${names.get(p.clientId) ?? ""}`, amount: p.amount, date: p.date })),
-    ...(ledger.repairs ?? [])
+    ...all
       .filter((r) => r.advance > 0 && late(r.date, r.createdAt))
       .map((r) => ({ kind: "repair" as const, id: r.id, label: `تسبيق إصلاح · ${r.device}`, amount: r.advance, date: r.date })),
+    ...all
+      .filter((r) => r.paid > 0 && r.deliveredDate && late(r.deliveredDate, r.updatedAt))
+      .map((r) => ({ kind: "repair" as const, id: `${r.id}:p`, label: `خلاص إصلاح · ${r.device}`, amount: r.paid, date: r.deliveredDate })),
   ];
   const closings = ledger.closings.filter((k) => k.date === date).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   return { date, cashSales, advances, installments, repairs, totals, backdated, closings };

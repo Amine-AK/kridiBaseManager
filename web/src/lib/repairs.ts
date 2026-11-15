@@ -16,8 +16,16 @@ export const STATUS_INFO: Record<RepairStatus, { icon: string; tone: "wait" | "w
   "ما تصلحش": { icon: "❌", tone: "bad" },
 };
 
-/** What is left to pay when the device is collected. */
-export const repairRemaining = (r: Pick<Repair, "price" | "advance">) => Math.max(0, Math.round((r.price - r.advance) * 100) / 100);
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** What is still to pay: price − advance − what was paid when collecting it. */
+export const repairRemaining = (r: Pick<Repair, "price" | "advance" | "paid">) => Math.max(0, round2(r.price - r.advance - (r.paid ?? 0)));
+
+/** All the money received for this repair. */
+export const repairReceived = (r: Pick<Repair, "advance" | "paid">) => round2(r.advance + (r.paid ?? 0));
+
+/** Received − what the repair cost the shop. */
+export const repairProfit = (r: Pick<Repair, "advance" | "paid" | "cost">) => round2(repairReceived(r) - (r.cost ?? 0));
 
 /** Still in the shop (not given back). */
 export const inShop = (r: Repair) => r.status !== "تسلم";
@@ -58,6 +66,21 @@ export function receivedMessage(r: Repair): string {
   if (r.price) lines.push(`💰 ثمن الإصلاح: ${money(r.price)}`);
   if (r.advance) lines.push(`💵 التسبيق: ${money(r.advance)}`);
   if (r.price) lines.push(`⏳ الباقي: *${money(repairRemaining(r))}*`);
+  lines.push(`🧾 رقم الإصلاح: ${r.code}`, "", `🏪 ${SHOP.name}`, `📞 ${SHOP.phone}`);
+  return lines.join("\n");
+}
+
+/** WhatsApp message when the owner collects the device: what was paid in all. */
+export function deliveredMessage(r: Repair): string {
+  const lines = [
+    `السلام عليكم ${r.owner} 👋`,
+    `🤝 خديتو الجهاز ديالكم «${r.device}» نهار ${displayDate(r.deliveredDate)}${r.deliveredTime ? ` على ${r.deliveredTime}` : ""}. شكراً.`,
+  ];
+  if (r.price) lines.push(`💰 ثمن الإصلاح: ${money(r.price)}`);
+  if (r.advance) lines.push(`💵 التسبيق: ${money(r.advance)}`);
+  if (r.paid) lines.push(`💵 خلصتو عند التسليم: ${money(r.paid)}`);
+  const left = repairRemaining(r);
+  lines.push(left > 0 ? `⏳ باقي: *${money(left)}*` : "✅ الإصلاح خالص.");
   lines.push(`🧾 رقم الإصلاح: ${r.code}`, "", `🏪 ${SHOP.name}`, `📞 ${SHOP.phone}`);
   return lines.join("\n");
 }

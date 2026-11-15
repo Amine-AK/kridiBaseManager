@@ -8,7 +8,20 @@ import { photoForCell } from "@/lib/image";
 import { pageCss, paperWidth, pitch } from "@/lib/label-layout";
 import { newLedgerId, nowParts, REPAIR_STATUSES, STICKER_LOOK_KEY, type Repair, type RepairStatus } from "@/lib/ledger";
 import { displayDate, SHOP, whatsappLink } from "@/lib/receipt";
-import { inShop, newRepairCode, readyMessage, receivedMessage, repairByCode, repairRemaining, searchRepairs, STATUS_INFO } from "@/lib/repairs";
+import {
+  deliveredMessage,
+  inShop,
+  newRepairCode,
+  readyMessage,
+  receivedMessage,
+  repairByCode,
+  repairProfit,
+  repairReceived,
+  repairRemaining,
+  searchRepairs,
+  STATUS_INFO,
+} from "@/lib/repairs";
+import { seesCost } from "@/lib/roles";
 import { fixAzertyDigits } from "@/lib/scanner-input";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { Ean13 } from "./LabelPrint";
@@ -206,6 +219,7 @@ function RepairForm({ data, repair, onClose, onSaved }: { data: LedgerState; rep
     time: repair?.time ?? now.time,
     notes: repair?.notes ?? "",
     photo: repair?.photo ?? "",
+    cost: repair?.cost ? String(repair.cost) : "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -231,7 +245,9 @@ function RepairForm({ data, repair, onClose, onSaved }: { data: LedgerState; rep
     e.preventDefault();
     const price = v.price.trim() ? parseAmount(v.price) : 0;
     const advance = v.advance.trim() ? parseAmount(v.advance) : 0;
+    const cost = v.cost.trim() ? parseAmount(v.cost) : 0;
     const err: Record<string, string> = {};
+    if (!(cost >= 0)) err.cost = "التكاليف غير صحيحة";
     if (!v.owner.trim()) err.owner = "السمية ضرورية";
     if (!v.device.trim()) err.device = "شنو هو الجهاز؟";
     if (!(price >= 0)) err.price = "الثمن غير صحيح";
@@ -252,6 +268,7 @@ function RepairForm({ data, repair, onClose, onSaved }: { data: LedgerState; rep
       time: v.time || now.time,
       notes: v.notes.trim(),
       photo: v.photo,
+      cost,
     };
     if (repair) {
       data.run(`تعديل إصلاح · ${fields.device}`, { type: "repair.update", id: repair.id, base: repair.updatedAt, patch: fields });
@@ -261,7 +278,7 @@ function RepairForm({ data, repair, onClose, onSaved }: { data: LedgerState; rep
     const at = new Date().toISOString();
     data.run(`إصلاح جديد · ${fields.device}`, {
       type: "repair.add",
-      repair: { id, code: newRepairCode(id, ledger), status: "مستلم", ...fields, createdAt: at, updatedAt: at },
+      repair: { id, code: newRepairCode(id, ledger), status: "مستلم", ...fields, deliveredDate: "", deliveredTime: "", paid: 0, createdAt: at, updatedAt: at },
     });
     onSaved(id, true);
   }
@@ -315,6 +332,9 @@ function RepairForm({ data, repair, onClose, onSaved }: { data: LedgerState; rep
         <Field id="rp-advance" label="التسبيق" error={errors.advance} hint="درهم">
           <input id="rp-advance" inputMode="decimal" dir="ltr" value={v.advance} onChange={(e) => set("advance")(e.target.value)} />
         </Field>
+        <Field id="rp-cost" label="تكاليف الإصلاح" error={errors.cost} hint="شحال كلف المحل (قطع، خدمة…) · ماشي على الزبون">
+          <input id="rp-cost" inputMode="decimal" dir="ltr" value={v.cost} onChange={(e) => set("cost")(e.target.value)} />
+        </Field>
         <Field id="rp-date" label="التاريخ" error={errors.date}>
           <input id="rp-date" type="date" value={v.date} onChange={(e) => set("date")(e.target.value)} />
         </Field>
@@ -350,6 +370,11 @@ function RepairDetail({
   // Stickers look like the shop's default; the printer settings are this device's.
   const [setup] = useLabelSetup(data.ledger!.settings.find((x) => x.key === STICKER_LOOK_KEY));
   const [printUrl, setPrintUrl] = useState("");
+  // 🤝 تسلم asks when, the final price and what was paid; leaving تسلم takes the delivery back.
+  const [delivering, setDelivering] = useState(false);
+  const [undoing, setUndoing] = useState<RepairStatus | null>(null);
+  const showProfit = seesCost(data.me);
+  const deliveredLink = r.status === "تسلم" ? whatsappLink(r.phone, deliveredMessage(r)) : null;
   const sticker = { shop: SHOP.name, name: `${r.device} · ${r.owner}` };
   const left = repairRemaining(r);
   const received = whatsappLink(r.phone, receivedMessage(r));
@@ -357,7 +382,21 @@ function RepairDetail({
 
   function setStatus(status: RepairStatus) {
     if (status === r.status) return;
+    if (status === "تسلم") return setDelivering(true);
+    if (r.status === "تسلم") return setUndoing(status);
     data.run(`${STATUS_INFO[status].icon} ${status} · ${r.device}`, { type: "repair.update", id: r.id, base: r.updatedAt, patch: { status } });
+    onToast(`${STATUS_INFO[status].icon} ${status}`);
+  }
+
+  /** Back in the shop: the delivery (and what was paid then) is taken back. */
+  function undoDelivery(status: RepairStatus) {
+    data.run(`${STATUS_INFO[status].icon} ${status} · ${r.device}`, {
+      type: "repair.update",
+      id: r.id,
+      base: r.updatedAt,
+      patch: { status, deliveredDate: "", deliveredTime: "", paid: 0 },
+    });
+    setUndoing(null);
     onToast(`${STATUS_INFO[status].icon} ${status}`);
   }
 
@@ -411,10 +450,42 @@ function RepairDetail({
           <dt>التسبيق</dt>
           <dd>{money(r.advance)}</dd>
         </div>
+        {r.status === "تسلم" && (
+          <>
+            <div>
+              <dt>تسلم نهار</dt>
+              <dd>
+                <bdi dir="ltr">
+                  {displayDate(r.deliveredDate)}
+                  {r.deliveredTime ? ` · ${r.deliveredTime}` : ""}
+                </bdi>
+              </dd>
+            </div>
+            <div>
+              <dt>خلص عند التسليم</dt>
+              <dd>{money(r.paid)}</dd>
+            </div>
+          </>
+        )}
         <div>
           <dt>الباقي</dt>
           <dd className={left > 0 ? "warn-text" : "ok-text"}>{r.price ? money(left) : "—"}</dd>
         </div>
+        {r.cost > 0 && (
+          <div>
+            <dt>تكاليف المحل</dt>
+            <dd>{money(r.cost)}</dd>
+          </div>
+        )}
+        {showProfit && (r.cost > 0 || r.status === "تسلم") && (
+          <div>
+            <dt>الربح</dt>
+            <dd className={repairProfit(r) < 0 ? "danger-text" : "ok-text"}>
+              {money(repairProfit(r))}
+              <span className="muted small"> (دخل {money(repairReceived(r))})</span>
+            </dd>
+          </div>
+        )}
       </dl>
       {r.problem && (
         <p>
@@ -452,6 +523,11 @@ function RepairDetail({
             📲 وصل الاستلام
           </a>
         )}
+        {deliveredLink && (
+          <a className="btn" href={deliveredLink} target="_blank" rel="noopener noreferrer">
+            📲 وصل التسليم
+          </a>
+        )}
         {readyLink && (r.status === "واجد" || r.status === "ما تصلحش") && (
           <a className="btn whatsapp" href={readyLink} target="_blank" rel="noopener noreferrer">
             📲 خبرو أنه واجد
@@ -464,6 +540,23 @@ function RepairDetail({
         </p>
       )}
 
+      {delivering && (
+        <DeliverDialog
+          repair={r}
+          onClose={() => setDelivering(false)}
+          onSave={(patch) => {
+            data.run(`🤝 تسلم · ${r.device}`, { type: "repair.update", id: r.id, base: r.updatedAt, patch: { status: "تسلم", ...patch } });
+            setDelivering(false);
+            onToast(patch.paid ? `🤝 تسلم · خلص ${money(patch.paid)}` : "🤝 تسلم");
+          }}
+        />
+      )}
+      {undoing && (
+        <Confirm title="رجوع الجهاز للمحل" confirmLabel={`${STATUS_INFO[undoing].icon} ${undoing}`} onClose={() => setUndoing(null)} onConfirm={() => undoDelivery(undoing)}>
+          <p className="lead">هاد الجهاز تسلم نهار {displayDate(r.deliveredDate)}. نرجعوه «{undoing}»؟</p>
+          {r.paid > 0 && <p className="muted">الخلاص ديال التسليم ({money(r.paid)}) غادي يتحيد من الصندوق.</p>}
+        </Confirm>
+      )}
       {printUrl &&
         createPortal(
           <div id="print-root" className="labels-print roll">
@@ -476,6 +569,100 @@ function RepairDetail({
           </div>,
           document.body,
         )}
+    </Modal>
+  );
+}
+
+/**
+ * The owner collects the device: when, the final price (the first estimate
+ * may have been wrong), what they pay now, and what the repair cost the shop
+ * (extra work or parts not charged to the customer).
+ */
+function DeliverDialog({
+  repair: r,
+  onClose,
+  onSave,
+}: {
+  repair: Repair;
+  onClose: () => void;
+  onSave: (patch: { deliveredDate: string; deliveredTime: string; price: number; paid: number; cost: number }) => void;
+}) {
+  const now = nowParts();
+  const [v, setV] = useState({
+    date: now.date,
+    time: now.time,
+    price: r.price ? String(r.price) : "",
+    paid: String(Math.max(0, r.price - r.advance)),
+    cost: r.cost ? String(r.cost) : "",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [paidTouched, setPaidTouched] = useState(false);
+  const price = v.price.trim() ? parseAmount(v.price) : 0;
+  const paid = v.paid.trim() ? parseAmount(v.paid) : 0;
+  const cost = v.cost.trim() ? parseAmount(v.cost) : 0;
+  const left = Math.max(0, Math.round((price - r.advance - paid) * 100) / 100);
+  const set = (k: keyof typeof v) => (value: string) => {
+    setV((o) => {
+      const next = { ...o, [k]: value };
+      // A new final price: what is paid now follows it, until typed by hand.
+      if (k === "price" && !paidTouched) {
+        const p = value.trim() ? parseAmount(value) : 0;
+        if (p >= 0) next.paid = String(Math.max(0, Math.round((p - r.advance) * 100) / 100));
+      }
+      return next;
+    });
+    if (k === "paid") setPaidTouched(true);
+    setErrors((e) => ({ ...e, [k]: "" }));
+  };
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    const err: Record<string, string> = {};
+    if (!v.date) err.date = "التاريخ ضروري";
+    if (!(price >= 0)) err.price = "الثمن غير صحيح";
+    if (!(paid >= 0)) err.paid = "المبلغ غير صحيح";
+    else if (paid > Math.max(0, price - r.advance) + 0.001) err.paid = "كثر من الباقي";
+    if (!(cost >= 0)) err.cost = "التكاليف غير صحيحة";
+    setErrors(err);
+    if (Object.keys(err).length) return;
+    onSave({ deliveredDate: v.date, deliveredTime: v.time, price, paid, cost });
+  }
+
+  return (
+    <Modal
+      title={`🤝 تسليم: ${r.device}`}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onClose}>
+            إلغاء
+          </button>
+          <button type="submit" form="deliver-form" className="btn primary">
+            🤝 تسلم
+          </button>
+        </>
+      }
+    >
+      <form id="deliver-form" className="form-grid" noValidate onSubmit={submit}>
+        <Field id="dl-date" label="نهار التسليم" error={errors.date}>
+          <input id="dl-date" type="date" value={v.date} onChange={(e) => set("date")(e.target.value)} />
+        </Field>
+        <Field id="dl-time" label="الساعة">
+          <input id="dl-time" type="time" value={v.time} onChange={(e) => set("time")(e.target.value)} />
+        </Field>
+        <Field id="dl-price" label="الثمن النهائي ديال الإصلاح" error={errors.price} hint={r.price ? `التقدير الأول: ${money(r.price)}` : "درهم"}>
+          <input id="dl-price" inputMode="decimal" dir="ltr" value={v.price} onChange={(e) => set("price")(e.target.value)} />
+        </Field>
+        <Field id="dl-paid" label="شحال خلص دابا" error={errors.paid} hint={`التسبيق: ${money(r.advance)}`}>
+          <input id="dl-paid" inputMode="decimal" dir="ltr" value={v.paid} onChange={(e) => set("paid")(e.target.value)} />
+        </Field>
+        <Field id="dl-cost" label="تكاليف المحل" error={errors.cost} hint="قطع ولا خدمة زايدة ما تحسباتش على الزبون" wide>
+          <input id="dl-cost" inputMode="decimal" dir="ltr" value={v.cost} onChange={(e) => set("cost")(e.target.value)} />
+        </Field>
+        <p className={`wide ${left > 0 ? "alert warn" : "alert info"}`}>
+          {left > 0 ? `⏳ غادي يبقى عليه ${money(left)}` : "✅ الإصلاح غادي يكون خالص"}
+        </p>
+      </form>
     </Modal>
   );
 }
