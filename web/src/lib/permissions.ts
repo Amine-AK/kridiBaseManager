@@ -89,7 +89,7 @@ export function ledgerFor(me: Me, ledger: Ledger): Ledger {
   // Repairs hold customers' names and phones: only for accounts that do repairs. Whoever
   // closes the cash drawer still gets their advances (amount, time, device), nothing personal.
   if (!can(me, "repairs")) {
-    const forDrawer = can(me, "caisse") ? ledger.repairs.filter((r) => r.advance > 0) : [];
+    const forDrawer = can(me, "caisse") ? ledger.repairs.filter((r) => r.advance > 0 || r.paid > 0) : [];
     ledger = { ...ledger, repairs: forDrawer.map((r) => ({ ...r, owner: "", phone: "", problem: "", notes: "", photo: "" })) };
   }
   const cost = seesCost(me);

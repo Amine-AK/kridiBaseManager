@@ -27,7 +27,7 @@ export function CaisseView({ data, onToast }: { data: LedgerState; onToast: (msg
     ...day.cashSales.map((s) => ({ id: s.id, time: s.time, label: `${s.quantity > 1 ? `${s.quantity}× ` : ""}${s.item}`, sub: `بيع كاش${s.seller ? ` · ${s.seller}` : ""}`, amount: s.sellPrice })),
     ...day.advances.map((p) => ({ id: p.id, time: p.time, label: names.get(p.clientId) ?? "—", sub: "تسبيق كريدي", amount: p.amount })),
     ...day.installments.map((p) => ({ id: p.id, time: p.time, label: names.get(p.clientId) ?? "—", sub: "دفعة طريطة", amount: p.amount })),
-    ...day.repairs.map((r) => ({ id: r.id, time: r.time, label: r.device, sub: "تسبيق إصلاح", amount: r.advance })),
+    ...day.repairs.map((r) => ({ id: r.id, time: r.time, label: r.device, sub: r.kind === "advance" ? "تسبيق إصلاح" : "خلاص إصلاح (التسليم)", amount: r.amount })),
   ].sort((a, b) => b.time.localeCompare(a.time));
 
   return (
@@ -71,9 +71,11 @@ export function CaisseView({ data, onToast }: { data: LedgerState; onToast: (msg
           <span className="stat-sub">{day.installments.length} دفعة</span>
         </div>
         <div className="stat">
-          <span className="stat-label">🔧 تسبيقات الإصلاح</span>
+          <span className="stat-label">🔧 الإصلاح</span>
           <span className="stat-value">{money(t.repairs)}</span>
-          <span className="stat-sub">{day.repairs.length} جهاز</span>
+          <span className="stat-sub">
+            {day.repairs.filter((r) => r.kind === "advance").length} تسبيق · {day.repairs.filter((r) => r.kind === "paid").length} تسليم
+          </span>
         </div>
       </section>
 
@@ -236,7 +238,7 @@ function CloseForm({
           <dd>{money(totals.advances)}</dd>
           <dt>دفعات الطريطات</dt>
           <dd>{money(totals.installments)}</dd>
-          <dt>تسبيقات الإصلاح</dt>
+          <dt>الإصلاح (تسبيق + تسليم)</dt>
           <dd>{money(totals.repairs)}</dd>
           <dt>− المصاريف</dt>
           <dd>{money(expenses || 0)}</dd>

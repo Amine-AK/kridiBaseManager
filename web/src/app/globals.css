@@ -1121,3 +1121,7 @@ a.btn { text-decoration: none; }
 .repair-statuses button { padding: 0 6px; white-space: nowrap; }
 .repair-code { display: grid; gap: 8px; justify-items: center; padding: 10px; border-radius: 10px; background: #fff; }
 .repair-code .ean13 { width: min(100%, 280px); height: auto; }
+
+/* الميزانية: الصندوق / التقارير switch (Dashboard.tsx). */
+.budget-tabs { margin-bottom: 12px; }
+.budget-tabs button { min-height: 44px; font-weight: 600; }

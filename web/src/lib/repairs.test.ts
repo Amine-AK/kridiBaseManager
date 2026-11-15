@@ -4,7 +4,7 @@ import { applyOp, EMPTY_LEDGER, type LedgerOp, type Repair, type StockItem } fro
 import { ledgerToRows, rowsToLedger } from "./ledger-sheet";
 import { ledgerFor, opAllowed } from "./permissions";
 import { cashDay } from "./shop";
-import { newRepairCode, readyMessage, receivedMessage, repairByCode, repairRemaining, searchRepairs } from "./repairs";
+import { deliveredMessage, repairProfit, repairReceived, newRepairCode, readyMessage, receivedMessage, repairByCode, repairRemaining, searchRepairs } from "./repairs";
 import type { Me } from "./roles";
 
 const T0 = "2026-11-15T09:00:00.000Z";
@@ -12,7 +12,8 @@ let n = 0;
 const op = (body: object) => ({ ...body, opId: `O-REP${String(++n).padStart(5, "0")}`, at: `2026-11-15T10:${String(n).padStart(2, "0")}:00.000Z`, by: "المالك", device: "PC" }) as LedgerOp;
 const repair = (over: Partial<Repair> = {}): Repair => ({
   id: "R-PHONE001", code: newShopCode("R-PHONE001", new Set()), date: "2026-11-15", time: "10:30", owner: "Amine jari", phone: "0661234567",
-  device: "Samsung A15", problem: "الشاشة مهرسة", price: 600, advance: 200, status: "مستلم", notes: "", photo: "", createdAt: T0, updatedAt: T0, ...over,
+  device: "Samsung A15", problem: "الشاشة مهرسة", price: 600, advance: 200, status: "مستلم", notes: "", photo: "",
+  deliveredDate: "", deliveredTime: "", paid: 0, cost: 0, createdAt: T0, updatedAt: T0, ...over,
 });
 
 describe("repairs", () => {
@@ -81,7 +82,7 @@ describe("repairs", () => {
   it("puts repair advances in the day's cash drawer", () => {
     const l = applyOp(EMPTY_LEDGER, op({ type: "repair.add", repair: repair() })).ledger;
     const day = cashDay(l, "2026-11-15");
-    expect(day.repairs.map((r) => r.id)).toEqual(["R-PHONE001"]);
+    expect(day.repairs.map((r) => [r.repairId, r.kind, r.amount])).toEqual([["R-PHONE001", "advance", 200]]);
     expect(day.totals).toMatchObject({ repairs: 200, incoming: 200 });
     expect(cashDay(l, "2026-11-16").totals.repairs).toBe(0);
     // Recorded today, but dated 2 days earlier: listed as backdated, not counted today.
@@ -95,5 +96,25 @@ describe("repairs", () => {
     const seen = ledgerFor(cashier, l).repairs;
     expect(seen).toHaveLength(1);
     expect(seen[0]).toMatchObject({ advance: 200, device: "Samsung A15", owner: "", phone: "", problem: "", photo: "" });
+  });
+
+  it("records when the device was collected, the final price, what was paid then and the shop's costs", () => {
+    let l = applyOp(EMPTY_LEDGER, op({ type: "repair.add", repair: repair() })).ledger;
+    // Collected without a date: refused.
+    const base = l.repairs[0].updatedAt;
+    expect(applyOp(l, op({ type: "repair.update", id: "R-PHONE001", base, patch: { status: "تسلم" } })).result).toBe("invalid");
+    // The estimate (600) was wrong: 700 in the end, 500 paid when collecting, 150 of parts paid by the shop.
+    const deliver = { status: "تسلم", deliveredDate: "2026-11-18", deliveredTime: "17:20", price: 700, paid: 500, cost: 150 };
+    l = applyOp(l, op({ type: "repair.update", id: "R-PHONE001", base, patch: deliver })).ledger;
+    const r = l.repairs[0];
+    expect([repairRemaining(r), repairReceived(r), repairProfit(r)]).toEqual([0, 700, 550]);
+    // The 500 count in the drawer on the day it was collected, the advance on the day it was brought.
+    expect(cashDay(l, "2026-11-18").repairs.map((x) => [x.kind, x.amount, x.time])).toEqual([["paid", 500, "17:20"]]);
+    expect(cashDay(l, "2026-11-15").totals.repairs).toBe(200);
+    expect(deliveredMessage(r)).toContain("🤝 خديتو الجهاز ديالكم «Samsung A15» نهار 18/11/2026 على 17:20. شكراً.");
+    expect(deliveredMessage(r)).toContain("💵 خلصتو عند التسليم: 500 درهم");
+    expect(deliveredMessage(r)).toContain("✅ الإصلاح خالص.");
+    const rows = ledgerToRows(l);
+    expect(rowsToLedger({ repairs: [...rows.repairs.values()] }).repairs).toEqual(l.repairs);
   });
 });

@@ -72,15 +72,21 @@ type Dialog =
   | { kind: "users" }
   | null;
 
-type View = "credit" | "sell" | "stock" | "repairs" | "caisse" | "reports";
+type View = "credit" | "sell" | "stock" | "repairs" | "budget";
+/** الميزانية holds the cash drawer and the reports. */
+type BudgetTab = "caisse" | "reports";
+const BUDGET_TABS: { value: BudgetTab; label: string }[] = [
+  { value: "caisse", label: "💰 الصندوق" },
+  { value: "reports", label: "📊 التقارير" },
+];
+const BUDGET_KEY = "budget-tab";
 
 const VIEWS: { value: View; icon: string; label: string }[] = [
   { value: "credit", icon: "📒", label: "الكريدي" },
   { value: "sell", icon: "🛒", label: "البيع" },
   { value: "stock", icon: "📦", label: "المخزون" },
   { value: "repairs", icon: "🔧", label: "الإصلاح" },
-  { value: "caisse", icon: "💰", label: "الصندوق" },
-  { value: "reports", icon: "📊", label: "التقارير" },
+  { value: "budget", icon: "💼", label: "الميزانية" },
 ];
 const VIEW_KEY = "view";
 
@@ -94,8 +100,7 @@ function viewsFor(me: Me | null): typeof VIEWS {
       (v.value === "sell" && (can(me, "sell_cash") || can(me, "sell_credit"))) ||
       (v.value === "stock" && can(me, "stock")) ||
       (v.value === "repairs" && can(me, "repairs")) ||
-      (v.value === "caisse" && can(me, "caisse")) ||
-      (v.value === "reports" && can(me, "reports")),
+      (v.value === "budget" && (can(me, "caisse") || can(me, "reports"))),
   );
 }
 
@@ -112,12 +117,27 @@ export function Dashboard() {
   const phone = useIsPhone();
   const [hideDebt, toggleDebt] = useHiddenAmount("credit-total");
 
+  const [budgetTab, setBudgetTabState] = useState<BudgetTab>("caisse");
+
   useEffect(() => {
     try {
-      const saved = sessionStorage.getItem(VIEW_KEY) as View | null;
-      if (saved && VIEWS.some((v) => v.value === saved)) setViewState(saved);
+      const saved = sessionStorage.getItem(VIEW_KEY);
+      // Saved before الميزانية existed: «الصندوق» / «التقارير» open in it.
+      if (saved === "caisse" || saved === "reports") {
+        setViewState("budget");
+        setBudgetTabState(saved);
+      } else if (saved && VIEWS.some((v) => v.value === saved)) setViewState(saved as View);
+      const tab = sessionStorage.getItem(BUDGET_KEY);
+      if (tab === "caisse" || tab === "reports") setBudgetTabState(tab);
     } catch {}
   }, []);
+
+  function setBudgetTab(t: BudgetTab) {
+    setBudgetTabState(t);
+    try {
+      sessionStorage.setItem(BUDGET_KEY, t);
+    } catch {}
+  }
 
   const me = data.me;
   const allow = (p: Parameters<typeof can>[1]) => can(me, p);
@@ -291,8 +311,25 @@ export function Dashboard() {
         )}
         {current === "stock" && data.ledger && <StockView data={data} onToast={setToast} />}
         {current === "repairs" && data.ledger && <RepairsView data={data} onToast={setToast} />}
-        {current === "caisse" && data.ledger && <CaisseView data={data} onToast={setToast} />}
-        {current === "reports" && data.ledger && <ReportsView data={data} onToast={setToast} />}
+        {current === "budget" && data.ledger && (() => {
+          // Only the parts of الميزانية this account may open.
+          const tabs = BUDGET_TABS.filter((b) => allow(b.value));
+          const tab = tabs.some((b) => b.value === budgetTab) ? budgetTab : tabs[0].value;
+          return (
+            <>
+              {tabs.length > 1 && (
+                <div className="segmented wide-seg budget-tabs" role="tablist" aria-label="الميزانية">
+                  {tabs.map((b) => (
+                    <button key={b.value} type="button" role="tab" aria-selected={tab === b.value} className={tab === b.value ? "on" : ""} onClick={() => setBudgetTab(b.value)}>
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {tab === "caisse" ? <CaisseView data={data} onToast={setToast} /> : <ReportsView data={data} onToast={setToast} />}
+            </>
+          );
+        })()}
 
         {current === "credit" && (
         <>

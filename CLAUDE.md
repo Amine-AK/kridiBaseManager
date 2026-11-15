@@ -80,7 +80,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 
 | Task / feature | File(s) |
 |---|---|
-| App shell, main tabs (الكريدي / البيع / المخزون / الصندوق / التقارير), customer list (phone: `ClientRow` lines, PC: `ClientCard` cards, switch `useIsPhone` < 640 px), search | `components/Dashboard.tsx` (`VIEWS`) |
+| App shell, main tabs (الكريدي / البيع / المخزون / الإصلاح / الميزانية = sub-tabs الصندوق + التقارير, `BUDGET_TABS`), customer list (phone: `ClientRow` lines, PC: `ClientCard` cards, switch `useIsPhone` < 640 px), search | `components/Dashboard.tsx` (`VIEWS`) |
 | Customer page (purchases, payments, delete) | `components/ClientDetail.tsx` |
 | Add / edit customer, instalment (الطريطة) | `components/ClientForms.tsx` |
 | Add purchase, record / edit payment (split hint, next due date) | `components/MoneyForms.tsx` |
@@ -90,8 +90,8 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Stock list, product form (codes, barcode popup), quantity ±, unknown scanned code, category chips | `components/StockView.tsx` (StockForm, AdjustForm, UnknownCode inside) |
 | Product families (categories) | `components/CategoryForm.tsx`, `components/CategoryIcon.tsx`, `lib/image.ts` |
 | Stock search, cash drawer math, reports math | `lib/shop.ts` |
-| Cash drawer screen (cash sales + credit advances + instalments + repair advances of repairs brought that day) | `components/CaisseView.tsx`, `cashDay` in `lib/shop.ts` |
-| Repairs (الإصلاح): devices brought to repair (photo, owner, problem, price, advance, status, own barcode, sticker / image, WhatsApp received / ready); service `repairs` (server hides repairs from accounts without it, `ledgerFor`). On a repair `device` = the repaired device, the recording device is `origin` | `components/RepairsView.tsx`, `lib/repairs.ts` (pure, tested), `Repair` in `lib/ledger.ts`, photo `photoForCell` in `lib/image.ts` |
+| Cash drawer screen, in الميزانية (cash sales + credit advances + instalments + repairs: advance on the day brought, `paid` on the day collected) | `components/CaisseView.tsx`, `cashDay` in `lib/shop.ts` |
+| Repairs (الإصلاح): devices brought to repair (photo, owner, problem, price, advance, status, own barcode, sticker / image, WhatsApp received / ready / delivered; 🤝 تسلم opens `DeliverDialog`: delivered date / time, final price, `paid` then, shop `cost`; profit for `seesCost`); service `repairs` (server hides repairs from accounts without it, `ledgerFor`). On a repair `device` = the repaired device, the recording device is `origin` | `components/RepairsView.tsx`, `lib/repairs.ts` (pure, tested), `Repair` in `lib/ledger.ts`, photo `photoForCell` in `lib/image.ts` |
 | Reports screen | `components/ReportsView.tsx` |
 | Shop barcodes (EAN-13 starting with 2, new number) | `lib/barcode.ts` |
 | Sticker printing window (sizes, list, 🔄 / ⬇️, print pages) | `components/LabelPrint.tsx` |
