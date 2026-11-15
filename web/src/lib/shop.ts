@@ -1,7 +1,7 @@
 // Shop side of the app: finding products, the day's cash drawer and the sales reports.
 // Pure functions, used on the phone (offline too) and in tests.
 
-import { addDays, nowParts, productCodes, type CaisseClose, type Category, type Ledger, type Payment, type Sale, type StockItem } from "./ledger";
+import { addDays, nowParts, productCodes, type CaisseClose, type Category, type Ledger, type Payment, type Repair, type Sale, type StockItem } from "./ledger";
 
 // ---------------------------------------------------------------- search
 
@@ -124,13 +124,15 @@ export interface CashDay {
   cashSales: Sale[];
   advances: Payment[];
   installments: Payment[];
-  totals: { cashSales: number; advances: number; installments: number; incoming: number };
+  /** Repairs brought that day with an advance (تسبيق الإصلاح). */
+  repairs: Repair[];
+  totals: { cashSales: number; advances: number; installments: number; repairs: number; incoming: number };
   /**
    * Recorded that day but dated up to a week earlier: money that may be missing
    * from an earlier drawer. (Older dates are records typed in from the past, like
    * the ones moved from the old sheet.)
    */
-  backdated: { kind: "sale" | "payment"; id: string; label: string; amount: number; date: string }[];
+  backdated: { kind: "sale" | "payment" | "repair"; id: string; label: string; amount: number; date: string }[];
   closings: CaisseClose[];
 }
 
@@ -138,7 +140,8 @@ const sum = (list: { amount?: number; sellPrice?: number }[]) => round2(list.red
 
 /**
  * Money that came into the drawer on `date`:
- * cash sales + credit advances (تسبيق) + instalments (دفعة). Expenses come off at closing.
+ * cash sales + credit advances (تسبيق) + instalments (دفعة) + repair advances
+ * (تسبيق الإصلاح, on the day the device was brought). Expenses come off at closing.
  */
 export function cashDay(ledger: Ledger, date: string): CashDay {
   const names = new Map(ledger.clients.map((c) => [c.id, c.name]));
@@ -146,8 +149,10 @@ export function cashDay(ledger: Ledger, date: string): CashDay {
   const payments = ledger.payments.filter((p) => p.date === date);
   const advances = payments.filter((p) => p.kind === "تسبيق");
   const installments = payments.filter((p) => p.kind === "دفعة");
-  const totals = { cashSales: sum(cashSales), advances: sum(advances), installments: sum(installments), incoming: 0 };
-  totals.incoming = round2(totals.cashSales + totals.advances + totals.installments);
+  const repairs = (ledger.repairs ?? []).filter((r) => r.date === date && r.advance > 0);
+  const repairsTotal = round2(repairs.reduce((t, r) => t + r.advance, 0));
+  const totals = { cashSales: sum(cashSales), advances: sum(advances), installments: sum(installments), repairs: repairsTotal, incoming: 0 };
+  totals.incoming = round2(totals.cashSales + totals.advances + totals.installments + totals.repairs);
   const weekBefore = addDays(date, -7);
   const late = (d: string, createdAt: string) => d < date && d >= weekBefore && dayOf(createdAt) === date;
   const backdated: CashDay["backdated"] = [
@@ -157,9 +162,12 @@ export function cashDay(ledger: Ledger, date: string): CashDay {
     ...ledger.payments
       .filter((p) => late(p.date, p.createdAt))
       .map((p) => ({ kind: "payment" as const, id: p.id, label: `${p.kind} · ${names.get(p.clientId) ?? ""}`, amount: p.amount, date: p.date })),
+    ...(ledger.repairs ?? [])
+      .filter((r) => r.advance > 0 && late(r.date, r.createdAt))
+      .map((r) => ({ kind: "repair" as const, id: r.id, label: `تسبيق إصلاح · ${r.device}`, amount: r.advance, date: r.date })),
   ];
   const closings = ledger.closings.filter((k) => k.date === date).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  return { date, cashSales, advances, installments, totals, backdated, closings };
+  return { date, cashSales, advances, installments, repairs, totals, backdated, closings };
 }
 
 // ---------------------------------------------------------------- reports

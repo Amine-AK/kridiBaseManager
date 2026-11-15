@@ -175,6 +175,7 @@ button, input, select { font: inherit; color: inherit; }
 /* ---------------------------------------------------------------- summary */
 
 .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 641px) { .summary.four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .stat {
   display: grid; gap: 2px; padding: 12px 14px;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);

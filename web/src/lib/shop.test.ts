@@ -128,7 +128,8 @@ describe("sales", () => {
     expect(back.sales[0]).toEqual({ ...l.sales[0] });
     expect(back.moves[0].delta).toBe(-2);
     expect(back.stock.find((s) => s.id === "I-CHARGER1")!.quantity).toBe(8);
-    expect(back.closings[0]).toEqual(l.closings[0]);
+    // Closings made before repair advances read back with 0 for them.
+    expect(back.closings[0]).toEqual({ ...l.closings[0], repairs: 0 });
   });
 });
 
@@ -142,7 +143,7 @@ describe("cash drawer and reports", () => {
 
   it("adds up the day's cash: cash sales + advances + instalments", () => {
     const day = cashDay(l, "2026-10-20");
-    expect(day.totals).toEqual({ cashSales: 2500, advances: 2000, installments: 0, incoming: 4500 });
+    expect(day.totals).toEqual({ cashSales: 2500, advances: 2000, installments: 0, repairs: 0, incoming: 4500 });
     expect(day.backdated.map((b) => b.id)).toEqual(["P-OLD00001"]);
   });
 

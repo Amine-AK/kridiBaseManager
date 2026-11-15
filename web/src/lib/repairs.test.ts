@@ -3,6 +3,7 @@ import { isShopCode, newShopCode } from "./barcode";
 import { applyOp, EMPTY_LEDGER, type LedgerOp, type Repair, type StockItem } from "./ledger";
 import { ledgerToRows, rowsToLedger } from "./ledger-sheet";
 import { ledgerFor, opAllowed } from "./permissions";
+import { cashDay } from "./shop";
 import { newRepairCode, readyMessage, receivedMessage, repairByCode, repairRemaining, searchRepairs } from "./repairs";
 import type { Me } from "./roles";
 
@@ -75,5 +76,24 @@ describe("repairs", () => {
     expect([owner, tech, cashier, stockman].map((m) => opAllowed(m, add))).toEqual([true, true, false, false]);
     const l = applyOp(EMPTY_LEDGER, add).ledger;
     expect([owner, tech, cashier, stockman].map((m) => ledgerFor(m, l).repairs.length)).toEqual([1, 1, 0, 0]);
+  });
+
+  it("puts repair advances in the day's cash drawer", () => {
+    const l = applyOp(EMPTY_LEDGER, op({ type: "repair.add", repair: repair() })).ledger;
+    const day = cashDay(l, "2026-11-15");
+    expect(day.repairs.map((r) => r.id)).toEqual(["R-PHONE001"]);
+    expect(day.totals).toMatchObject({ repairs: 200, incoming: 200 });
+    expect(cashDay(l, "2026-11-16").totals.repairs).toBe(0);
+    // Recorded today, but dated 2 days earlier: listed as backdated, not counted today.
+    const late = applyOp(EMPTY_LEDGER, op({ type: "repair.add", repair: repair({ date: "2026-11-13", createdAt: "2026-11-15T09:00:00.000Z" }) })).ledger;
+    expect(cashDay(late, "2026-11-15").backdated.map((b) => [b.kind, b.amount])).toEqual([["repair", 200]]);
+  });
+
+  it("gives whoever closes the drawer the repair advances, without the customer's details", () => {
+    const cashier: Me = { id: "U5", name: "Hind", role: "seller", services: ["caisse"], seeCost: false };
+    const l = applyOp(EMPTY_LEDGER, op({ type: "repair.add", repair: repair({ photo: "data:image/jpeg;base64,AAAA" }) })).ledger;
+    const seen = ledgerFor(cashier, l).repairs;
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ advance: 200, device: "Samsung A15", owner: "", phone: "", problem: "", photo: "" });
   });
 });

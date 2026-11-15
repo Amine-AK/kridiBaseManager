@@ -412,7 +412,8 @@ Statuses: 📥 مستلم → 🔧 فالإصلاح → ✅ واجد → 🤝 ت
 buttons send the owner a drop-off receipt («📲 وصل الاستلام») and, when ready,
 «📲 خبرو أنه واجد» with what is left to pay. The list shows what is in the shop
 (default), what is ready, or everything; search by name, phone, device or
-barcode. Saved in the sheet tab «الإصلاح». Service **🔧 الإصلاح** in the users
+barcode. Repair advances count in the day's cash drawer (الصندوق), on the day
+the device was brought («🔧 تسبيقات الإصلاح»). Saved in the sheet tab «الإصلاح». Service **🔧 الإصلاح** in the users
 window: without it a seller doesn't see the tab, and the server doesn't send
 repairs (customers' phones) to their device.
 

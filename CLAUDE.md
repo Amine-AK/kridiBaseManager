@@ -90,7 +90,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Stock list, product form (codes, barcode popup), quantity ±, unknown scanned code, category chips | `components/StockView.tsx` (StockForm, AdjustForm, UnknownCode inside) |
 | Product families (categories) | `components/CategoryForm.tsx`, `components/CategoryIcon.tsx`, `lib/image.ts` |
 | Stock search, cash drawer math, reports math | `lib/shop.ts` |
-| Cash drawer screen | `components/CaisseView.tsx` |
+| Cash drawer screen (cash sales + credit advances + instalments + repair advances of repairs brought that day) | `components/CaisseView.tsx`, `cashDay` in `lib/shop.ts` |
 | Repairs (الإصلاح): devices brought to repair (photo, owner, problem, price, advance, status, own barcode, sticker / image, WhatsApp received / ready); service `repairs` (server hides repairs from accounts without it, `ledgerFor`). On a repair `device` = the repaired device, the recording device is `origin` | `components/RepairsView.tsx`, `lib/repairs.ts` (pure, tested), `Repair` in `lib/ledger.ts`, photo `photoForCell` in `lib/image.ts` |
 | Reports screen | `components/ReportsView.tsx` |
 | Shop barcodes (EAN-13 starting with 2, new number) | `lib/barcode.ts` |

@@ -12,7 +12,7 @@ import { Field, parseAmount } from "./ui";
 /**
  * The day's cash drawer (الصندوق اليومي): what should be in it, and the closing
  * count that the owner can check from anywhere.
- * Expected = cash sales + credit advances + instalments − shop expenses.
+ * Expected = cash sales + credit advances + instalments + repair advances − shop expenses.
  */
 export function CaisseView({ data, onToast }: { data: LedgerState; onToast: (msg: string) => void }) {
   const ledger = data.ledger!;
@@ -27,6 +27,7 @@ export function CaisseView({ data, onToast }: { data: LedgerState; onToast: (msg
     ...day.cashSales.map((s) => ({ id: s.id, time: s.time, label: `${s.quantity > 1 ? `${s.quantity}× ` : ""}${s.item}`, sub: `بيع كاش${s.seller ? ` · ${s.seller}` : ""}`, amount: s.sellPrice })),
     ...day.advances.map((p) => ({ id: p.id, time: p.time, label: names.get(p.clientId) ?? "—", sub: "تسبيق كريدي", amount: p.amount })),
     ...day.installments.map((p) => ({ id: p.id, time: p.time, label: names.get(p.clientId) ?? "—", sub: "دفعة طريطة", amount: p.amount })),
+    ...day.repairs.map((r) => ({ id: r.id, time: r.time, label: r.device, sub: "تسبيق إصلاح", amount: r.advance })),
   ].sort((a, b) => b.time.localeCompare(a.time));
 
   return (
@@ -53,7 +54,7 @@ export function CaisseView({ data, onToast }: { data: LedgerState; onToast: (msg
         )}
       </section>
 
-      <section className="summary" aria-label="التفصيل">
+      <section className="summary four" aria-label="التفصيل">
         <div className="stat">
           <span className="stat-label">💵 مبيعات الكاش</span>
           <span className="stat-value">{money(t.cashSales)}</span>
@@ -68,6 +69,11 @@ export function CaisseView({ data, onToast }: { data: LedgerState; onToast: (msg
           <span className="stat-label">🔁 دفعات الطريطات</span>
           <span className="stat-value">{money(t.installments)}</span>
           <span className="stat-sub">{day.installments.length} دفعة</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">🔧 تسبيقات الإصلاح</span>
+          <span className="stat-value">{money(t.repairs)}</span>
+          <span className="stat-sub">{day.repairs.length} جهاز</span>
         </div>
       </section>
 
@@ -105,7 +111,7 @@ export function CaisseView({ data, onToast }: { data: LedgerState; onToast: (msg
                     {k.clerk ? ` · ${k.clerk}` : ""}
                   </p>
                   <p className="small">
-                    دخل {money(round2(k.cashSales + k.advances + k.installments))} − مصاريف {money(k.expenses)}
+                    دخل {money(round2(k.cashSales + k.advances + k.installments + (k.repairs ?? 0)))} − مصاريف {money(k.expenses)}
                     {k.expensesNote ? ` (${k.expensesNote})` : ""} = المتوقع <strong>{money(k.expected)}</strong>
                   </p>
                   {k.counted !== null && (
@@ -195,6 +201,7 @@ function CloseForm({
         cashSales: totals.cashSales,
         advances: totals.advances,
         installments: totals.installments,
+        repairs: totals.repairs,
         expenses: expenses || 0,
         expensesNote: v.expensesNote.trim(),
         expected,
@@ -229,6 +236,8 @@ function CloseForm({
           <dd>{money(totals.advances)}</dd>
           <dt>دفعات الطريطات</dt>
           <dd>{money(totals.installments)}</dd>
+          <dt>تسبيقات الإصلاح</dt>
+          <dd>{money(totals.repairs)}</dd>
           <dt>− المصاريف</dt>
           <dd>{money(expenses || 0)}</dd>
           <dt className="strong">الصافي فالقجر</dt>
