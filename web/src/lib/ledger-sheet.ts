@@ -82,7 +82,7 @@ export const HEADERS: Record<TableKey, string[]> = {
   moves: ["رقم", "رقم السلعة", "السلعة", "التاريخ", "التغيير", "السبب", "البائع", "تاريخ الإضافة", "أكواد جديدة"],
   closings: [
     "رقم", "التاريخ", "الساعة", "البائع", "مبيعات الكاش", "تسبيقات الكريدي", "دفعات الطريطات", "المصاريف",
-    "تفاصيل المصاريف", "الصافي فالقجر (المتوقع)", "المبلغ المحسوب", "الفرق", "ملاحظات", "تاريخ الإضافة",
+    "تفاصيل المصاريف", "الصافي فالقجر (المتوقع)", "المبلغ المحسوب", "الفرق", "ملاحظات", "تاريخ الإضافة", "تسبيقات الإصلاح",
   ],
 };
 
@@ -272,6 +272,7 @@ export function rowToClosing(r: unknown[]): CaisseClose | null {
     counted: nn(r[10]),
     notes: s(r[12]),
     createdAt: s(r[13]),
+    repairs: n(r[14]),
   };
 }
 
@@ -356,7 +357,7 @@ export function ledgerToRows(ledger: Ledger, today = todayISO()): Record<TableKe
       k.id,
       [
         k.id, k.date, k.time, k.clerk, k.cashSales, k.advances, k.installments, k.expenses, k.expensesNote, k.expected,
-        k.counted ?? "", k.counted === null ? "" : round2(k.counted - k.expected), k.notes, k.createdAt,
+        k.counted ?? "", k.counted === null ? "" : round2(k.counted - k.expected), k.notes, k.createdAt, k.repairs ?? 0,
       ],
     ]),
   );

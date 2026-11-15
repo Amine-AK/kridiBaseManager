@@ -173,6 +173,8 @@ export interface CaisseClose {
   cashSales: number;
   advances: number;
   installments: number;
+  /** Advances paid on repairs brought that day (0 in closings made before repairs counted). */
+  repairs?: number;
   expenses: number;
   expensesNote: string;
   /** What should be in the drawer. */
@@ -740,7 +742,7 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
       if (ledger.closings.some((x) => x.id === k.id)) return { ledger, result: "already" };
       if (!isLedgerId(k.id) || !k.id.startsWith("K-") || !date(k.date) || !k.date || !time(k.time)) return invalid(ledger, "معلومات الصندوق غير صحيحة");
       if (!text(k.clerk, 100) || !text(k.expensesNote, 500) || !text(k.notes, 1000)) return invalid(ledger, "معلومات الصندوق غير صحيحة");
-      if (![k.cashSales, k.advances, k.installments, k.expected].every(amount) || !money(k.expenses) || (k.counted !== null && !money(k.counted))) {
+      if (![k.cashSales, k.advances, k.installments, k.repairs ?? 0, k.expected].every(amount) || !money(k.expenses) || (k.counted !== null && !money(k.counted))) {
         return invalid(ledger, "المبالغ غير صحيحة");
       }
       return { ledger: { ...ledger, closings: [...ledger.closings, k] }, result: "ok" };
