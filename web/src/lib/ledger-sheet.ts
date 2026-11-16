@@ -87,7 +87,8 @@ export const HEADERS: Record<TableKey, string[]> = {
   ],
   approvals: [
     "رقم الطلب", "التاريخ", "الساعة", "البائع", "الجهاز", "رقم الزبون", "الزبون", "التعديل", "المبلغ",
-    "الحالة", "سبب الرفض", "قرر", "وقت القرار", "التعديل (JSON)", "تاريخ الإضافة", "آخر تعديل",
+    "الحالة", "ملاحظة المالك / سبب الرفض", "قرر", "وقت القرار", "التعديل (JSON)", "تاريخ الإضافة", "آخر تعديل",
+    "ملاحظة البائع",
   ],
   claims: [
     "رقم الطلب", "التاريخ", "الساعة", "الزبون", "هاتف الزبون", "السلعة", "تاريخ البيع", "الشركة", "واتساب الشركة", "العطب",
@@ -234,6 +235,7 @@ export function rowToApproval(r: unknown[]): Approval | null {
     id,
     op,
     status: APPROVAL_STATUSES.includes(status) ? status : "كتسنى",
+    note: s(r[16]),
     reason: s(r[10]),
     decidedBy: s(r[11]),
     decidedAt: s(r[12]),
@@ -469,7 +471,7 @@ export function ledgerToRows(ledger: Ledger, today = todayISO()): Record<TableKe
         x.id,
         [
           x.id, when.date, when.time, x.op.by ?? "", x.op.device ?? "", info.clientId, info.client, `${info.icon} ${info.text}`, info.amount,
-          x.status, x.reason, x.decidedBy, x.decidedAt, JSON.stringify(x.op), x.createdAt, x.updatedAt,
+          x.status, x.reason, x.decidedBy, x.decidedAt, JSON.stringify(x.op), x.createdAt, x.updatedAt, x.note,
         ],
       ];
     }),
