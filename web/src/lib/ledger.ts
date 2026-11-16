@@ -280,7 +280,9 @@ export interface Approval {
   /** The change as the seller made it (with who, from which device, when). */
   op: LedgerOp;
   status: ApprovalStatus;
-  /** Why it was refused. */
+  /** The seller's note to the owner ("" = none). */
+  note: string;
+  /** The owner's note when deciding: why it was refused, or a word on acceptance. */
   reason: string;
   decidedBy: string;
   decidedAt: string;
@@ -405,6 +407,8 @@ type OpBody =
   | { type: "approval.add"; id: string; op: LedgerOp }
   /** The owner accepts (the change and what it needs are applied) or refuses (with what was built on it). */
   | { type: "approval.decide"; id: string; decision: "accept" | "refuse"; reason: string }
+  /** The seller who made a waiting change writes (or changes) a note to the owner. */
+  | { type: "approval.note"; id: string; note: string }
   /** A shop-wide setting (key → JSON text), e.g. the default sticker look. */
   | { type: "setting.save"; key: string; value: string }
   /** Lines sold together; a credit sale also brings the purchases for the customer's account. */
@@ -827,7 +831,7 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
       }
       if (!isLedgerId(op.id) || !op.id.startsWith("A-") || JSON.stringify(inner).length > 40_000) return invalid(ledger, "الطلب غير صحيح");
       if (ledger.approvals.some((a) => a.id === op.id)) return { ledger, result: "already" };
-      const a: Approval = { id: op.id, op: { ...inner, by: op.by ?? inner.by ?? "", device: op.device ?? inner.device ?? "" }, status: "كتسنى", reason: "", decidedBy: "", decidedAt: "", createdAt: inner.at, updatedAt: op.at };
+      const a: Approval = { id: op.id, op: { ...inner, by: op.by ?? inner.by ?? "", device: op.device ?? inner.device ?? "" }, status: "كتسنى", note: "", reason: "", decidedBy: "", decidedAt: "", createdAt: inner.at, updatedAt: op.at };
       return { ledger: { ...ledger, approvals: [...ledger.approvals, a] }, result: "ok" };
     }
     case "approval.decide": {
@@ -839,7 +843,8 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
       const done = (ids: Set<string>, status: ApprovalStatus) => (l: Ledger): Ledger => ({
         ...l,
         approvals: l.approvals.map((x) =>
-          ids.has(x.id) ? { ...x, status, reason: status === "ترفض" ? (op.reason ?? "").trim() : "", decidedBy: op.by ?? "", decidedAt: op.at, updatedAt: op.at } : x,
+          // The owner's note goes on the request decided; the ones taken with it get none.
+          ids.has(x.id) ? { ...x, status, reason: x.id === a.id ? (op.reason ?? "").trim() : "", decidedBy: op.by ?? "", decidedAt: op.at, updatedAt: op.at } : x,
         ),
       });
       if (op.decision === "refuse") {
@@ -858,6 +863,16 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
         l = r.ledger;
       }
       return { ledger: done(new Set(chain.map((x) => x.id)), "تقبل")(l), result: "ok" };
+    }
+    case "approval.note": {
+      const a = ledger.approvals.find((x) => x.id === op.id);
+      if (!a) return invalid(ledger, "هاد الطلب ما بقاش");
+      if (a.updatedAt === op.at) return { ledger, result: "already" };
+      if (a.status !== "كتسنى") return invalid(ledger, "هاد الطلب تقرر ديجا");
+      // Only the seller who made the change (the server stamps who sends it).
+      if (!op.by || op.by !== a.op.by) return invalid(ledger, "غير البائع لي دار هاد التعديل يقدر يكتب الملاحظة");
+      if (typeof op.note !== "string" || !text(op.note, 300)) return invalid(ledger, "الملاحظة طويلة بزاف");
+      return { ledger: { ...ledger, approvals: ledger.approvals.map((x) => (x.id === a.id ? { ...x, note: op.note.trim(), updatedAt: op.at } : x)) }, result: "ok" };
     }
     case "setting.save": {
       if (typeof op.key !== "string" || !/^[a-z0-9-]{1,40}$/.test(op.key) || typeof op.value !== "string" || op.value.length > 20_000) {

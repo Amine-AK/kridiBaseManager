@@ -18,6 +18,12 @@ const TABS: { value: ApprovalStatus; label: string }[] = [
 const RECENT_MS = 7 * 24 * 3600_000;
 export const recentRefusals = (approvals: Approval[], now = Date.now()) =>
   approvals.filter((a) => a.status === "ترفض" && now - Date.parse(a.decidedAt) < RECENT_MS);
+/** Changes the owner accepted with a note, in the last 7 days. */
+export const recentOwnerNotes = (approvals: Approval[], now = Date.now()) =>
+  approvals.filter((a) => a.status === "تقبل" && a.reason && now - Date.parse(a.decidedAt) < RECENT_MS);
+
+/** What the note window is for. */
+type Writing = { kind: "refuse" | "accept" | "note"; items: Approval[]; label: string };
 
 const when = (iso: string) => {
   if (Number.isNaN(Date.parse(iso))) return "";
@@ -34,8 +40,9 @@ export function ApprovalsDialog({ data, clientId, onClose, onToast }: { data: Le
   const ledger = data.ledger!;
   const owner = data.me?.role === "owner";
   const [tab, setTab] = useState<ApprovalStatus>("كتسنى");
-  const [refusing, setRefusing] = useState<{ ids: string[]; label: string } | null>(null);
+  const [writing, setWriting] = useState<Writing | null>(null);
   const [reason, setReason] = useState("");
+  const myName = data.me?.name ?? "";
 
   const info = (a: Approval) => describe(a.op, ledger);
   const list = ledger.approvals
@@ -47,24 +54,37 @@ export function ApprovalsDialog({ data, clientId, onClose, onToast }: { data: Le
   const counts = Object.fromEntries(TABS.map((t) => [t.value, ledger.approvals.filter((a) => a.status === t.value && (!clientId || info(a).clientId === clientId)).length]));
 
   /** Accept these (oldest first); one already taken with an earlier one's needs is not sent twice. */
-  function accept(items: Approval[]) {
+  function accept(items: Approval[], note = "") {
     const waiting = waitingOf(ledger);
     const taken = new Set<string>();
     let n = 0;
     for (const a of [...items].sort((x, y) => x.createdAt.localeCompare(y.createdAt))) {
       if (taken.has(a.id)) continue;
       for (const x of approvalChain(waiting, a)) taken.add(x.id);
-      data.run(`✓ موافقة · ${info(a).client} · ${info(a).text}`, { type: "approval.decide", id: a.id, decision: "accept", reason: "" });
+      data.run(`✓ موافقة · ${info(a).client} · ${info(a).text}`, { type: "approval.decide", id: a.id, decision: "accept", reason: note });
       n++;
     }
     if (n) onToast(taken.size > 1 ? `✓ تقبلو ${taken.size} تعديلات` : "✓ تقبل");
   }
 
-  function refuse() {
-    if (!refusing) return;
-    for (const id of refusing.ids) data.run(`❌ رفض · ${refusing.label}`, { type: "approval.decide", id, decision: "refuse", reason: reason.trim() });
-    onToast("❌ ترفض");
-    setRefusing(null);
+  function open(w: Writing) {
+    setReason(w.kind === "note" ? w.items[0].note : "");
+    setWriting(w);
+  }
+
+  function save() {
+    if (!writing) return;
+    const text = reason.trim();
+    if (writing.kind === "refuse") {
+      for (const a of writing.items) data.run(`❌ رفض · ${writing.label}`, { type: "approval.decide", id: a.id, decision: "refuse", reason: text });
+      onToast("❌ ترفض");
+    } else if (writing.kind === "accept") {
+      accept(writing.items, text);
+    } else {
+      data.run(`📝 ملاحظة للمالك · ${writing.label}`, { type: "approval.note", id: writing.items[0].id, note: text });
+      onToast(text ? "📝 تسجلات الملاحظة" : "تحيدات الملاحظة");
+    }
+    setWriting(null);
     setReason("");
   }
 
@@ -112,7 +132,13 @@ export function ApprovalsDialog({ data, clientId, onClose, onToast }: { data: Le
                         {a.status === "تقبل" ? "✓ قبلو" : "❌ رفضو"} {a.decidedBy} · <bdi dir="ltr">{when(a.decidedAt)}</bdi>
                       </span>
                     )}
-                    {a.reason && <span className="danger-text small">السبب: {a.reason}</span>}
+                    {a.note && <span className="approval-note">📝 {a.op.by || "البائع"}: {a.note}</span>}
+                    {a.reason &&
+                      (a.status === "ترفض" ? (
+                        <span className="danger-text small">السبب: {a.reason}</span>
+                      ) : (
+                        <span className="approval-note owner">📝 {a.decidedBy || "المالك"}: {a.reason}</span>
+                      ))}
                     {broken && <span className="warn-text small">⚠️ ما بقاش كيتطبق: {broken}</span>}
                   </div>
                   {owner && a.status === "كتسنى" && (
@@ -120,10 +146,18 @@ export function ApprovalsDialog({ data, clientId, onClose, onToast }: { data: Le
                       <button type="button" className="btn primary small-btn" onClick={() => accept([a])} disabled={Boolean(broken)}>
                         ✓ قبول
                       </button>
-                      <button type="button" className="btn danger-ghost small-btn" onClick={() => setRefusing({ ids: [a.id], label: `${i.client} · ${i.text}` })}>
+                      <button type="button" className="btn danger-ghost small-btn" onClick={() => open({ kind: "refuse", items: [a], label: `${i.client} · ${i.text}` })}>
                         ✕ رفض
                       </button>
+                      <button type="button" className="link-btn" onClick={() => open({ kind: "accept", items: [a], label: `${i.client} · ${i.text}` })} disabled={Boolean(broken)}>
+                        📝 قبول بملاحظة
+                      </button>
                     </div>
+                  )}
+                  {!owner && a.status === "كتسنى" && a.op.by === myName && (
+                    <button type="button" className="link-btn approval-note-btn" onClick={() => open({ kind: "note", items: [a], label: `${i.client} · ${i.text}` })}>
+                      {a.note ? "✏️ بدل الملاحظة" : "📝 زيد ملاحظة للمالك"}
+                    </button>
                   )}
                 </li>
               );
@@ -131,26 +165,42 @@ export function ApprovalsDialog({ data, clientId, onClose, onToast }: { data: Le
           </ul>
         </section>
       ))}
-      {refusing && (
+      {writing && (
         <Modal
-          title="❌ رفض التعديل"
-          onClose={() => setRefusing(null)}
+          title={writing.kind === "refuse" ? "❌ رفض التعديل" : writing.kind === "accept" ? "✓ قبول بملاحظة" : "📝 ملاحظة للمالك"}
+          onClose={() => setWriting(null)}
           footer={
             <>
-              <button type="button" className="btn" onClick={() => setRefusing(null)}>
+              <button type="button" className="btn" onClick={() => setWriting(null)}>
                 رجوع
               </button>
-              <button type="button" className="btn danger" onClick={refuse}>
-                رفض
+              <button type="button" className={`btn ${writing.kind === "refuse" ? "danger" : "primary"}`} onClick={save}>
+                {writing.kind === "refuse" ? "رفض" : writing.kind === "accept" ? "✓ قبول" : "حفظ"}
               </button>
             </>
           }
         >
-          <p className="lead">{refusing.label}</p>
-          <p className="muted small">التعديلات لي مبنية على هادا (مثلا دفعة ديال زبون جديد) كيترفضو معاه.</p>
+          <p className="lead">{writing.label}</p>
+          {writing.kind === "refuse" && <p className="muted small">التعديلات لي مبنية على هادا (مثلا دفعة ديال زبون جديد) كيترفضو معاه.</p>}
           <div className="field">
-            <label htmlFor="refuse-reason">السبب (كيشوفو البائع)</label>
-            <input id="refuse-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} autoFocus placeholder="مثلا: المبلغ غلط، الزبون ما خلصش…" />
+            <label htmlFor="approval-note">
+              {writing.kind === "refuse" ? "السبب (كيشوفو البائع)" : writing.kind === "accept" ? "الملاحظة (كيشوفها البائع)" : "الملاحظة (كيشوفها المالك قبل ما يوافق)"}
+            </label>
+            <textarea
+              id="approval-note"
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={300}
+              autoFocus
+              placeholder={
+                writing.kind === "refuse"
+                  ? "مثلا: المبلغ غلط، الزبون ما خلصش…"
+                  : writing.kind === "accept"
+                    ? "مثلا: مزيان، عيط عليه السبت…"
+                    : "مثلا: خلص نص اليوم والباقي السبت…"
+              }
+            />
           </div>
         </Modal>
       )}
@@ -165,7 +215,10 @@ export function ApprovalsBar({ data, onOpen }: { data: LedgerState; onOpen: () =
   const waiting = waitingOf(ledger);
   const owner = data.me.role === "owner";
   const refused = owner ? [] : recentRefusals(ledger.approvals).filter((a) => a.op.by === data.me!.name);
-  if (!waiting.length && !refused.length) return null;
+  const notes = owner ? [] : recentOwnerNotes(ledger.approvals).filter((a) => a.op.by === data.me!.name);
+  // The owner sees how many waiting changes came with a note from the seller.
+  const noted = waiting.filter((a) => a.note).length;
+  if (!waiting.length && !refused.length && !notes.length) return null;
   const clients = new Set(waiting.map((a) => describe(a.op, ledger).clientId)).size;
   return (
     <button type="button" className={`approvals-bar ${owner && waiting.length ? "attention" : ""}`} onClick={onOpen}>
@@ -174,6 +227,7 @@ export function ApprovalsBar({ data, onOpen }: { data: LedgerState; onOpen: () =
           (owner ? (
             <>
               ⏳ <strong>{clients}</strong> زبون عندهم <strong>{waiting.length}</strong> تعديل كيتسنى الموافقة ديالك
+              {noted > 0 && <> · 📝 {noted} فيهم ملاحظة</>}
             </>
           ) : (
             <>
@@ -183,6 +237,11 @@ export function ApprovalsBar({ data, onOpen }: { data: LedgerState; onOpen: () =
         {refused.length > 0 && (
           <>
             {waiting.length > 0 && " · "}❌ <strong>{refused.length}</strong> ترفضو
+          </>
+        )}
+        {notes.length > 0 && (
+          <>
+            {(waiting.length > 0 || refused.length > 0) && " · "}📝 <strong>{notes.length}</strong> ملاحظة من المالك
           </>
         )}
       </span>

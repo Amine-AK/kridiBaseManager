@@ -448,6 +448,11 @@ the customers' tabs. It is kept in the tab «طلبات الموافقة» until
   needs; refusing the customer also refuses what was built on it. A customer's page
   shows the same banner; the owner can't edit a record a seller changed until deciding.
 - **Seller**: sees what still waits, and the changes refused in the last 7 days with the reason.
+- **Notes**: on a waiting change of their own the seller can write «📝 ملاحظة للمالك»
+  (e.g. «خلص نص اليوم والباقي السبت»), shown to the owner in the list and on the
+  customer's page. The owner can accept with a note too («📝 قبول بملاحظة»); the
+  seller sees it for 7 days (bar in الكريدي and customer's page). Both are kept in
+  the tab «طلبات الموافقة» («ملاحظة البائع», «ملاحظة المالك / سبب الرفض»).
 - A refused payment no longer counts in the cash drawer: if the drawer was already
   closed that day, it shows as a difference.
 

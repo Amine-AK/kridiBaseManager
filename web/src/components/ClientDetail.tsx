@@ -16,7 +16,7 @@ import { Confirm } from "./ui";
 import { ClaimForm, useNow } from "./ClaimsView";
 import { isLate, openClaimFor } from "@/lib/claims";
 import { waitingByClient } from "@/lib/approvals";
-import { ApprovalsDialog, recentRefusals } from "./ApprovalsView";
+import { ApprovalsDialog, recentOwnerNotes, recentRefusals } from "./ApprovalsView";
 import { describe as describeRequest } from "@/lib/approvals";
 
 type Sub =
@@ -52,6 +52,7 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
   const owner = data.me?.role === "owner";
   const waiting = data.ledger ? (waitingByClient(data.ledger).get(c.id) ?? []) : [];
   const refused = data.ledger ? recentRefusals(data.ledger.approvals).filter((a) => describeRequest(a.op, data.ledger!).clientId === c.id) : [];
+  const ownerNotes = data.ledger ? recentOwnerNotes(data.ledger.approvals).filter((a) => describeRequest(a.op, data.ledger!).clientId === c.id) : [];
   const newWaiting = waiting.some((a) => a.op.type === "client.add");
   // The owner decides first: an edit of a record a seller changed would be refused by the sheet.
   const editable = (id: string) => !(owner && data.pendingIds.has(id));
@@ -106,9 +107,23 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
               {newWaiting && " (زبون جديد)"}. ما تسجلو فالـ Google Sheet باقي؛ الأرقام هنا محسوبين بيهم.
               {ownerLocked && " وافق ولا رفض قبل ما تبدل فهاد الزبون."}
             </p>
+            {waiting.filter((a) => a.note).map((a) => (
+              <p key={a.id} className="approval-note">
+                📝 {a.op.by || "البائع"}: {a.note}
+              </p>
+            ))}
             <button type="button" className="btn small-btn" onClick={() => setSub({ kind: "approvals" })}>
-              {owner ? "شوف ووافق" : "شوف"}
+              {owner ? "شوف ووافق" : "شوف ولا زيد ملاحظة للمالك"}
             </button>
+          </div>
+        )}
+        {ownerNotes.length > 0 && !owner && (
+          <div className="alert info pending-note">
+            {ownerNotes.map((a) => (
+              <p key={a.id}>
+                ✓ تقبل: {describeRequest(a.op, data.ledger!).text} · 📝 {a.decidedBy || "المالك"}: {a.reason}
+              </p>
+            ))}
           </div>
         )}
         {refused.length > 0 && !owner && (

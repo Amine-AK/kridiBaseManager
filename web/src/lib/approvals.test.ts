@@ -123,6 +123,30 @@ group("requests that depend on each other", () => {
   });
 });
 
+group("notes", () => {
+  it("the seller writes a note on their waiting change; the owner writes one when accepting", () => {
+    const { ledger, id } = request(base(), { type: "payment.add", payment: payment() });
+    const noted = applyOp(ledger, op({ type: "approval.note", id, note: "  خلص نص والباقي السبت " }));
+    expect(noted.result).toBe("ok");
+    expect(noted.ledger.approvals[0].note).toBe("خلص نص والباقي السبت");
+    // Not another seller's, not once decided.
+    expect(applyOp(ledger, op({ type: "approval.note", id, note: "x" }, "Karim")).result).toBe("invalid");
+    const ok = decide(noted.ledger, id, "accept", "مزيان، عيط عليه السبت");
+    expect(ok.ledger.approvals[0]).toMatchObject({ status: "تقبل", note: "خلص نص والباقي السبت", reason: "مزيان، عيط عليه السبت" });
+    expect(applyOp(ok.ledger, op({ type: "approval.note", id, note: "y" })).result).toBe("invalid");
+    expect(opAllowed(seller, op({ type: "approval.note", id, note: "x" }))).toBe(true);
+    expect(opAllowed(owner, op({ type: "approval.note", id, note: "x" }))).toBe(false);
+  });
+  it("the owner's note stays on the request decided, not on those accepted with it", () => {
+    let l: Ledger = emptyLedger();
+    const c = request(l, { type: "client.add", client: client("C-NEW00001") });
+    l = c.ledger;
+    const p = request(l, { type: "payment.add", payment: payment("P-NEW00001", 500, "C-NEW00001") });
+    const ok = decide(p.ledger, p.id, "accept", "واخا");
+    expect(ok.ledger.approvals.map((a) => a.reason)).toEqual(["", "واخا"]);
+  });
+});
+
 group("permissions", () => {
   it("the seller asks, only the owner decides", () => {
     const pay = op({ type: "payment.add", payment: payment() });
@@ -136,7 +160,7 @@ group("permissions", () => {
     const sale = op({ type: "sale.add", lines: [{ id: "V-1", type: "كريدي", buyPrice: 500, seller: "x" }], purchases: [] });
     const stamped = stampOp(seller, asRequest(sale), base());
     expect(stamped.type === "approval.add" && stamped.op.type === "sale.add" && stamped.op.lines[0].seller).toBe("Said");
-    const l = { ...base(), approvals: [{ id: "A-1", op: sale, status: "كتسنى" as const, reason: "", decidedBy: "", decidedAt: "", createdAt: T0, updatedAt: T0 }] };
+    const l = { ...base(), approvals: [{ id: "A-1", op: sale, status: "كتسنى" as const, note: "", reason: "", decidedBy: "", decidedAt: "", createdAt: T0, updatedAt: T0 }] };
     const seen = ledgerFor(seller, l).approvals[0].op;
     expect(seen.type === "sale.add" && seen.lines[0].buyPrice).toBe(null);
     expect(ledgerFor({ ...seller, role: "stock" }, l).approvals).toHaveLength(0);

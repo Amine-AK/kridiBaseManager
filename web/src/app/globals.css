@@ -1169,3 +1169,8 @@ a.btn { text-decoration: none; }
 .pending-note { margin: 10px 0; }
 .client-row .pending-dot, .card .pending-dot { margin-inline-start: 6px; font-size: 13px; }
 .pending-note p { margin: 0; }
+.approval-note { justify-self: start; margin-top: 2px; padding: 4px 8px; border-radius: 8px; background: var(--info-soft); color: var(--info); font-size: 13px; overflow-wrap: anywhere; }
+.approval-note.owner { background: var(--accent-soft); color: var(--accent); }
+.approval-actions .link-btn { flex: none; white-space: nowrap; }
+.approval-note-btn { justify-self: start; }
+.field textarea { width: 100%; }
