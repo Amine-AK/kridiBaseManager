@@ -1,6 +1,7 @@
 import { handleError, jsonError, readJson } from "@/lib/api";
 import type { LedgerOp } from "@/lib/ledger";
 import { opAllowed, requireUser, stampOp } from "@/lib/access";
+import { outOfScope } from "@/lib/permissions";
 import { asRequest, needsApproval } from "@/lib/approvals";
 import { cleanDevice } from "@/lib/change-origin";
 import { sync } from "@/lib/store";
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
     // this covers older versions of it).
     const results = await sync(ops, (op, ledger) => {
       if (!opAllowed(me, op)) return "ما عندكش الصلاحية لهاد الشي";
+      if (outOfScope(me, op, ledger)) return "هاد الزبون ماشي من الزبناء الخاصين لي كتتبع";
       const stamped = { ...stampOp(me, op, ledger), by: me.name, device: cleanDevice(op.device) } as LedgerOp;
       return needsApproval(me, stamped, ledger) ? asRequest(stamped) : stamped;
     });

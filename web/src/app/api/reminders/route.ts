@@ -1,5 +1,5 @@
 import { handleError } from "@/lib/api";
-import { requireUser } from "@/lib/access";
+import { ledgerFor, requireUser } from "@/lib/access";
 import { watiConfigured } from "@/lib/env";
 import { summarize } from "@/lib/ledger";
 import { reminderRow } from "@/lib/reminders";
@@ -15,7 +15,7 @@ export async function GET() {
   if (me instanceof Response) return me;
   try {
     const today = todayISO();
-    const [ledger, log] = await Promise.all([loadLedger(), readReminderLog()]);
+    const [ledger, log] = await Promise.all([loadLedger().then((l) => ledgerFor(me, l)), readReminderLog()]);
     const overdue = summarize(ledger, today)
       .filter((s) => s.status === "overdue")
       .sort((a, b) => a.client.nextDueDate.localeCompare(b.client.nextDueDate))

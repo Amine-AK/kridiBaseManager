@@ -1,5 +1,6 @@
 import { handleError, jsonError, readJson } from "@/lib/api";
 import { requireUser } from "@/lib/access";
+import { specialOnly } from "@/lib/roles";
 import { isLedgerId } from "@/lib/ledger";
 import { restore } from "@/lib/store";
 
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
   if (body instanceof Response) return body;
   if (!isLedgerId(body.id)) return jsonError("رقم الزبون غير صحيح", 400);
   try {
-    if (!(await restore(body.id))) return jsonError("هاد الزبون ما كاينش فالأرشيف", 404);
+    if (!(await restore(body.id, specialOnly(me)))) return jsonError("هاد الزبون ما كاينش فالأرشيف", 404);
     return Response.json({ ok: true });
   } catch (e) {
     return handleError(e);

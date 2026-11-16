@@ -15,7 +15,7 @@ import {
 import { formatMoroccoPhone, isManualPeriod, isValidPhone, nextDateForPeriod, PERIODS } from "@/lib/sheet-logic";
 import { currentSeller, findByCode, marginCheck, round2, searchStock } from "@/lib/shop";
 import { fixAzertyDigits } from "@/lib/scanner-input";
-import { can } from "@/lib/roles";
+import { can, newClientType } from "@/lib/roles";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { CategoryIcon } from "./CategoryIcon";
 import { useScannerInput } from "./useScannerInput";
@@ -212,6 +212,7 @@ export function SaleForm({
         period: inst.period,
         nextDueDate: owedAfter > 0 ? instNext : "",
         notes: "",
+        type: newClientType(data.me),
         createdAt: at,
         updatedAt: at,
       };

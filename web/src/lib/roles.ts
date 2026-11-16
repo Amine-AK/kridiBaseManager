@@ -38,7 +38,22 @@ export interface Me {
   services: Service[];
   /** Buy prices and profit are visible (always for the owner). */
   seeCost: boolean;
+  /** Which customers this account follows: all (default), or only the special ones (type 1). */
+  clientScope?: ClientScope;
 }
+
+export type ClientScope = "all" | "special";
+
+/** Customer types (column «نوع الزبون»): 0 = normal, 1 = special. */
+export const CLIENT_TYPES = [0, 1] as const;
+export type ClientType = (typeof CLIENT_TYPES)[number];
+
+/** This account follows only the special customers (never the owner). */
+export const specialOnly = (me: Pick<Me, "role" | "clientScope"> | null | undefined) => Boolean(me && me.role !== "owner" && me.clientScope === "special");
+
+/** The type a new customer gets: the owner chooses; an account that follows only special customers makes special ones. */
+export const newClientType = (me: Pick<Me, "role" | "clientScope"> | null | undefined, chosen: ClientType = 0): ClientType =>
+  me?.role === "owner" ? chosen : specialOnly(me) ? 1 : 0;
 
 export function can(me: Pick<Me, "role" | "services"> | null | undefined, perm: Permission): boolean {
   if (!me) return false;

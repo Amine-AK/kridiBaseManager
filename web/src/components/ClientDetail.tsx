@@ -79,6 +79,7 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
       <Modal title={c.name} onClose={onClose} busy={busy}>
         <div className="detail-head">
           <span className={`pill ${s.status}`}>{STATUS_LABEL[s.status]}</span>
+          {c.type === 1 && <span className="pill special">⭐ زبون خاص</span>}
           <span className="muted small" dir="ltr">
             {c.id}
           </span>

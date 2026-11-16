@@ -94,6 +94,12 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
   record a seller changed until deciding. Notes: the seller who made a waiting change writes one
   for the owner (`approval.note` → `Approval.note`, column «ملاحظة البائع»); the owner's note when
   accepting or refusing is `reason` (column «ملاحظة المالك / سبب الرفض», only on the request decided).
+- **Customer type** (`Client.type`, last column of الزبناء «نوع الزبون (0 عادي، 1 خاص)», empty = 0):
+  0 normal, 1 special ⭐. Only the owner sets it (form checkbox; `stampOp` forces it otherwise).
+  A seller account has `clientScope` (users tab, last column «الزبناء لي كيتبع»: الكل / غير الخاصين):
+  `specialOnly(me)` → `ledgerFor` keeps only type-1 customers and their records (`specialView`),
+  `/api/sync` refuses their changes on others (`outOfScope`), their new customers are type 1
+  (`newClientType`); also applied to reminders, archive search / archive / restore.
 - Credit math (remaining per customer and per product, payment split, due
   status): `summarizeClient`, `itemStatuses`, `paymentSplit` in `src/lib/ledger.ts`.
   A payment bigger than what is left on its product spills to the oldest unpaid products.
@@ -132,7 +138,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Scanner engine (formats + check digits, 2-read confirm, decode region, worker, camera tuning) | `src/scanner/*` (see below) |
 | USB / Bluetooth scanner (keyboard input, AZERTY fix) | `components/useScannerInput.ts`, `lib/scanner-input.ts` |
 | Beep sound | `lib/beep.ts` |
-| Login, session cookie, users / roles / services (`SELLER_SERVICES`: … `repairs`, `claims`, `reports`, `backup`; role `seller` = credit changes wait for the owner) | `app/login/page.tsx`, `app/api/login`, `lib/auth.ts`, `lib/users.ts`, `lib/roles.ts`, `components/UsersDialog.tsx` |
+| Login, session cookie, users / roles / services (`SELLER_SERVICES`: … `repairs`, `claims`, `reports`, `backup`; role `seller` = credit changes wait for the owner; seller's «الزبناء لي كيتبع» = `clientScope`) | `app/login/page.tsx`, `app/api/login`, `lib/auth.ts`, `lib/users.ts`, `lib/roles.ts`, `components/UsersDialog.tsx` |
 | Who may do what (UI hides, server enforces) | `lib/roles.ts` (`can`, `seesCost`), `lib/permissions.ts` |
 | Route protection (what needs login) | `src/proxy.ts` (matcher: login, PWA files, `/scanner/` are public) |
 | Offline / PWA | `public/sw.js` (cache version `VERSION`), `components/RegisterServiceWorker.tsx`, `components/InstallButton.tsx`, `app/manifest.ts`, `lib/idb.ts` |

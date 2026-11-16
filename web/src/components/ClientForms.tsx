@@ -6,7 +6,7 @@ import { monthsToFinish, newLedgerId, nowParts, type Client, type ClientSummary 
 import { formatMoroccoPhone, isValidPhone, PERIODS } from "@/lib/sheet-logic";
 import { Modal } from "./Modal";
 import { SaleForm } from "./SaleForm";
-import { can } from "@/lib/roles";
+import { can, newClientType } from "@/lib/roles";
 import type { LedgerState } from "./useLedger";
 import { ChangeList, diff, Field, parseAmount } from "./ui";
 
@@ -102,6 +102,8 @@ export function NewClientForm({
   onDone: (clientId: string, paymentId?: string) => void;
 }) {
   const [v, setV] = useState({ name: "", phone: "" });
+  const [special, setSpecial] = useState(false);
+  const owner = data.me?.role === "owner";
   const [phones, setPhones] = useState<string[]>([]);
   const [errors, setErrors] = useState<Errors>({});
   const [step, setStep] = useState<"info" | "ask" | "sale">("info");
@@ -127,7 +129,7 @@ export function NewClientForm({
     const more = cleanPhones(phones).filter((x) => formatMoroccoPhone(x) !== formatMoroccoPhone(v.phone));
     const at = new Date().toISOString();
     // The instalment is set with the first sale.
-    const c: Client = { id: newLedgerId("C"), name: v.name.trim(), phone: v.phone.trim(), ...(more.length ? { phones: more } : {}), installment: 0, period: "شهر", nextDueDate: "", notes: "", createdAt: at, updatedAt: at };
+    const c: Client = { id: newLedgerId("C"), name: v.name.trim(), phone: v.phone.trim(), ...(more.length ? { phones: more } : {}), installment: 0, period: "شهر", nextDueDate: "", notes: "", type: newClientType(data.me, special ? 1 : 0), createdAt: at, updatedAt: at };
     data.run(`زبون جديد · ${c.name}`, { type: "client.add", client: c });
     setClient(c);
     // Only someone who may sell on credit is offered the sale.
@@ -210,6 +212,11 @@ export function NewClientForm({
             setErrors((e) => ({ ...e, phones: "" }));
           }}
         />
+        {owner && (
+          <label className="check">
+            <input type="checkbox" checked={special} onChange={(e) => setSpecial(e.target.checked)} /> ⭐ زبون خاص (نوع 1)
+          </label>
+        )}
       </form>
     </Modal>
   );
@@ -219,7 +226,9 @@ export function NewClientForm({
 
 export function ClientInfoForm({ data, summary, onClose }: { data: LedgerState; summary: ClientSummary; onClose: () => void }) {
   const c = summary.client;
-  const [v, setV] = useState({ name: c.name, phone: c.phone, notes: c.notes, nextDueDate: c.nextDueDate });
+  const [v, setV] = useState({ name: c.name, phone: c.phone, notes: c.notes, nextDueDate: c.nextDueDate, type: c.type === 1 ? 1 : 0 });
+  // Only the owner chooses who is a special customer.
+  const owner = data.me?.role === "owner";
   const [phones, setPhones] = useState<string[]>(c.phones ?? []);
   const [errors, setErrors] = useState<Errors>({});
   const [confirm, setConfirm] = useState(false);
@@ -230,6 +239,7 @@ export function ClientInfoForm({ data, summary, onClose }: { data: LedgerState; 
     ["أرقام أخرى", (c.phones ?? []).join(" · "), more.join(" · ")],
     ["ملاحظات", c.notes, v.notes.trim()],
     ["الدفعة المقبلة", c.nextDueDate, v.nextDueDate],
+    ["نوع الزبون", c.type === 1 ? "⭐ خاص" : "عادي", v.type === 1 ? "⭐ خاص" : "عادي"],
   ]);
 
   function check(e: FormEvent) {
@@ -249,7 +259,7 @@ export function ClientInfoForm({ data, summary, onClose }: { data: LedgerState; 
       type: "client.update",
       id: c.id,
       base: c.updatedAt,
-      patch: { name: v.name.trim(), phone: v.phone.trim(), phones: more, notes: v.notes.trim(), nextDueDate: v.nextDueDate },
+      patch: { name: v.name.trim(), phone: v.phone.trim(), phones: more, notes: v.notes.trim(), nextDueDate: v.nextDueDate, ...(owner ? { type: v.type } : {}) },
     });
     onClose();
   }
@@ -315,6 +325,11 @@ export function ClientInfoForm({ data, summary, onClose }: { data: LedgerState; 
         <Field id="ci-notes" label="ملاحظات" wide>
           <input id="ci-notes" value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} />
         </Field>
+        {owner && (
+          <label className="check wide">
+            <input type="checkbox" checked={v.type === 1} onChange={(e) => setV({ ...v, type: e.target.checked ? 1 : 0 })} /> ⭐ زبون خاص (نوع 1)
+          </label>
+        )}
       </form>
     </Modal>
   );
