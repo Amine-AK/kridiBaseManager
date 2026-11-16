@@ -56,6 +56,12 @@ export function opAllowed(me: Me, op: LedgerOp): boolean {
     // A seller's credit change kept for the owner: allowed when the change itself is.
     case "approval.add":
       return Boolean(op.op && typeof op.op === "object" && CREDIT_OPS.has(op.op.type)) && opAllowed(me, op.op);
+    // The notebook: every account writes and ticks off; only the owner tears out a page.
+    case "note.add":
+    case "note.update":
+      return true;
+    case "note.delete":
+      return any("owner_only");
     // A seller's note on their own waiting change (applyOp checks it is theirs).
     case "approval.note":
       return me.role === "seller";

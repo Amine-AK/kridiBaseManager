@@ -265,6 +265,32 @@ export interface Claim {
   origin?: string;
 }
 
+/** A line of the shop's notebook (الكناش): something to remember, or what a customer asked for. */
+export const NOTE_KINDS = ["ملاحظة", "طلب زبون"] as const;
+export type NoteKind = (typeof NOTE_KINDS)[number];
+
+export interface Note {
+  id: string;
+  /** When it was written: yyyy-mm-dd, HH:mm. */
+  date: string;
+  time: string;
+  kind: NoteKind;
+  text: string;
+  /** The customer it is about ("" = none): typed, or filled from الزبناء by the phone. */
+  customer: string;
+  phone: string;
+  /** Ticked off: by whom and when (ISO), "" while open. */
+  done: boolean;
+  doneBy: string;
+  doneAt: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Who wrote it first, and the account / device of the last change. */
+  author: string;
+  by?: string;
+  origin?: string;
+}
+
 /** Where a seller's credit change is (طلبات الموافقة). */
 export const APPROVAL_STATUSES = ["كتسنى", "تقبل", "ترفض"] as const;
 export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
@@ -325,10 +351,11 @@ export interface Ledger {
   repairs: Repair[];
   claims: Claim[];
   approvals: Approval[];
+  notes: Note[];
 }
 
 export function emptyLedger(): Ledger {
-  return { clients: [], purchases: [], payments: [], changes: [], stock: [], categories: [], sales: [], moves: [], closings: [], settings: [], repairs: [], claims: [], approvals: [] };
+  return { clients: [], purchases: [], payments: [], changes: [], stock: [], categories: [], sales: [], moves: [], closings: [], settings: [], repairs: [], claims: [], approvals: [], notes: [] };
 }
 
 export const EMPTY_LEDGER: Ledger = emptyLedger();
@@ -357,7 +384,7 @@ const ID_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I: easy to rea
  * "C-7K2QXM9A": prefix C (client), S (purchase), P (payment), T (instalment change), O (operation),
  * I (stock item), V (sale), M (stock move), K (cash drawer closing).
  */
-export type IdPrefix = "C" | "S" | "P" | "T" | "O" | "I" | "V" | "M" | "K" | "R" | "W" | "A";
+export type IdPrefix = "C" | "S" | "P" | "T" | "O" | "I" | "V" | "M" | "K" | "R" | "W" | "A" | "N";
 export function newLedgerId(prefix: IdPrefix): string {
   const bytes = new Uint8Array(8);
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) crypto.getRandomValues(bytes);
@@ -365,7 +392,7 @@ export function newLedgerId(prefix: IdPrefix): string {
   return `${prefix}-${Array.from(bytes, (b) => ID_CHARS[b % ID_CHARS.length]).join("")}`;
 }
 
-const ID_RE = /^[CSPTOIVMKRWA]-[A-Z0-9]{4,16}$/;
+const ID_RE = /^[CSPTOIVMKRWAN]-[A-Z0-9]{4,16}$/;
 export const isLedgerId = (s: unknown): s is string => typeof s === "string" && ID_RE.test(s);
 
 // ---------------------------------------------------------------- operations
@@ -407,6 +434,10 @@ type OpBody =
   | { type: "approval.add"; id: string; op: LedgerOp }
   /** The owner accepts (the change and what it needs are applied) or refuses (with what was built on it). */
   | { type: "approval.decide"; id: string; decision: "accept" | "refuse"; reason: string }
+  /** The notebook (الكناش). */
+  | { type: "note.add"; note: Note }
+  | { type: "note.update"; id: string; base: string; patch: Partial<Pick<Note, "date" | "time" | "kind" | "text" | "customer" | "phone" | "done">> }
+  | { type: "note.delete"; id: string }
   /** The seller who made a waiting change writes (or changes) a note to the owner. */
   | { type: "approval.note"; id: string; note: string }
   /** A shop-wide setting (key → JSON text), e.g. the default sticker look. */
@@ -535,6 +566,16 @@ function checkClaim(c: Claim): string | null {
   if (typeof c.lastSentAt !== "string" || Number.isNaN(Date.parse(c.lastSentAt))) return "وقت آخر رسالة غير صحيح";
   if (!Number.isInteger(c.reminders) || c.reminders < 0 || c.reminders > 10_000) return "عدد التذكيرات غير صحيح";
   if (![c.clientId, c.purchaseId, c.saleId].every((x) => text(x, 60))) return "معلومات الطلب غير صحيحة";
+  return null;
+}
+
+function checkNote(n: Note): string | null {
+  if (!isLedgerId(n.id) || !n.id.startsWith("N-")) return "رقم الملاحظة غير صحيح";
+  if (!date(n.date) || !n.date || !time(n.time)) return "التاريخ ولا الساعة غير صحيحين";
+  if (!NOTE_KINDS.includes(n.kind)) return "النوع غير صحيح";
+  if (!text(n.text, 2000) || !n.text.trim()) return "كتب شي حاجة";
+  if (!text(n.customer, 200) || !text(n.phone, 40)) return "معلومات الزبون غير صحيحة";
+  if (typeof n.done !== "boolean" || !text(n.doneBy, 100) || !text(n.doneAt, 40)) return "الحالة غير صحيحة";
   return null;
 }
 
@@ -863,6 +904,32 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
         l = r.ledger;
       }
       return { ledger: done(new Set(chain.map((x) => x.id)), "تقبل")(l), result: "ok" };
+    }
+    case "note.add": {
+      const n = op.note;
+      if (!n || typeof n !== "object") return invalid(ledger, "الملاحظة غير صحيحة");
+      if (ledger.notes.some((x) => x.id === n.id)) return { ledger, result: "already" };
+      const next: Note = { ...n, done: false, doneBy: "", doneAt: "", updatedAt: op.at, author: op.by ?? "", by: op.by ?? "", origin: op.device ?? "" };
+      const err = checkNote(next);
+      if (err) return invalid(ledger, err);
+      return { ledger: { ...ledger, notes: [...ledger.notes, next] }, result: "ok" };
+    }
+    case "note.update": {
+      const n = ledger.notes.find((x) => x.id === op.id);
+      if (!n) return invalid(ledger, "هاد الملاحظة ما بقاتش");
+      if (n.updatedAt === op.at) return { ledger, result: "already" };
+      if (n.updatedAt !== op.base) return { ledger, result: "conflict", message: CONFLICT };
+      const patch = pick<Note>(op.patch, ["date", "time", "kind", "text", "customer", "phone", "done"]);
+      // Ticking it off records who and when; unticking clears it.
+      const tick = patch.done === undefined || patch.done === n.done ? {} : patch.done ? { doneBy: op.by ?? "", doneAt: op.at } : { doneBy: "", doneAt: "" };
+      const next: Note = { ...n, ...patch, ...tick, updatedAt: op.at, by: op.by ?? "", origin: op.device ?? "" };
+      const err = checkNote(next);
+      if (err) return invalid(ledger, err);
+      return { ledger: { ...ledger, notes: replace(ledger.notes, n.id, next) }, result: "ok" };
+    }
+    case "note.delete": {
+      if (!ledger.notes.some((x) => x.id === op.id)) return { ledger, result: "already" };
+      return { ledger: { ...ledger, notes: ledger.notes.filter((x) => x.id !== op.id) }, result: "ok" };
     }
     case "approval.note": {
       const a = ledger.approvals.find((x) => x.id === op.id);

@@ -20,6 +20,8 @@ import { SaleForm, type SaleDone } from "./SaleForm";
 import { SaleTicketDialog } from "./SaleTicket";
 import { StockView } from "./StockView";
 import { RepairsView } from "./RepairsView";
+import { NotesView } from "./NotesView";
+import { isOpenRequest } from "@/lib/notes";
 import { ClaimsView, ServiceContactsDialog, useNow } from "./ClaimsView";
 import { lateClaims } from "@/lib/claims";
 import { ApprovalsBar, ApprovalsDialog } from "./ApprovalsView";
@@ -78,7 +80,7 @@ type Dialog =
   | { kind: "approvals" }
   | null;
 
-type View = "credit" | "sell" | "stock" | "repairs" | "budget";
+type View = "credit" | "sell" | "stock" | "repairs" | "budget" | "notes";
 /** الميزانية holds the cash drawer and the reports. */
 type BudgetTab = "caisse" | "reports";
 const BUDGET_TABS: { value: BudgetTab; label: string }[] = [
@@ -100,16 +102,19 @@ const VIEWS: { value: View; icon: string; label: string }[] = [
   { value: "stock", icon: "📦", label: "المخزون" },
   { value: "repairs", icon: "🔧", label: "الإصلاح" },
   { value: "budget", icon: "💼", label: "الميزانية" },
+  { value: "notes", icon: "📝", label: "الكناش" },
 ];
 const VIEW_KEY = "view";
 
 /** The sections this user can open. */
 function viewsFor(me: Me | null): typeof VIEWS {
   if (!me) return VIEWS.filter((v) => v.value === "credit");
-  if (me.role === "stock") return VIEWS.filter((v) => v.value === "stock");
+  // The notebook is for every account.
+  if (me.role === "stock") return VIEWS.filter((v) => v.value === "stock" || v.value === "notes");
   return VIEWS.filter(
     (v) =>
       v.value === "credit" ||
+      v.value === "notes" ||
       (v.value === "sell" && (can(me, "sell_cash") || can(me, "sell_credit"))) ||
       (v.value === "stock" && can(me, "stock")) ||
       (v.value === "repairs" && (can(me, "repairs") || can(me, "claims"))) ||
@@ -168,6 +173,8 @@ export function Dashboard() {
   const waiting = useMemo(() => (data.ledger ? waitingByClient(data.ledger) : new Map<string, unknown[]>()), [data.ledger]);
   // Requests to the brands' services still open 48 h after the last message (none for accounts without the service).
   const lateCount = lateClaims(data.ledger?.claims ?? [], now).length;
+  // Customers' requests in the notebook not done yet.
+  const openNotes = (data.ledger?.notes ?? []).filter(isOpenRequest).length;
   const allow = (p: Parameters<typeof can>[1]) => can(me, p);
   const views = viewsFor(me);
   // A section this user can't open (e.g. remembered from another account) falls back to the first allowed one.
@@ -325,6 +332,7 @@ export function Dashboard() {
             <span>
               {v.label}
               {v.value === "repairs" && lateCount > 0 && <bdi className="tab-count" title="طلبات خدمة الشركة لي فاتو 48 ساعة">{lateCount}</bdi>}
+              {v.value === "notes" && openNotes > 0 && <bdi className="tab-count note-count" title="طلبات الزبناء لي باقي ما تداروش">{openNotes}</bdi>}
             </span>
           </button>
         ))}
@@ -342,6 +350,7 @@ export function Dashboard() {
           </section>
         )}
         {current === "stock" && data.ledger && <StockView data={data} onToast={setToast} />}
+        {current === "notes" && data.ledger && <NotesView data={data} onToast={setToast} />}
         {current === "repairs" && data.ledger && (() => {
           // Only the parts of الإصلاح this account may open.
           const tabs = REPAIR_TABS.filter((b) => allow(b.value));

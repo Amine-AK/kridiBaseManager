@@ -433,6 +433,22 @@ the device was brought («🔧 تسبيقات الإصلاح»). Saved in the sh
 window: without it a seller doesn't see the tab, and the server doesn't send
 repairs (customers' phones) to their device.
 
+### 📝 الكناش (the shop's notebook)
+
+A main tab that looks like the paper notebook next to the till, for every account
+(owner, sellers, stock manager).
+
+- Write a line at once at the top of the page: «📝 ملاحظة» (anything to remember)
+  or «🙋 طلب زبون» (what a customer asked for). Add the customer if it's about one:
+  typing the phone fills the name from الزبناء (or earlier repairs), from the data
+  already on the device. Date, time and who wrote it are kept.
+- Pages per day («اليوم», «البارح», then the date), newest first. Tick ✓ when it's
+  done (who and when are kept). Search by word, customer or phone; filters
+  «🙋 طلبات باقية», «ما تداروش», «✓ تدارو». 📞 calls the customer.
+- Tap a line to change it. Only the owner can delete a line.
+- The number of customer requests not done yet shows on the tab.
+- Sheet tab «الكناش» (created on first use).
+
 ### ⏳ Sellers' credit changes wait for the owner (طلبات الموافقة)
 
 Whatever a **seller** account changes about credit (new customer, credit sale,
