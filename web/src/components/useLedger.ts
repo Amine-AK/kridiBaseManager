@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, apiFetch } from "@/lib/client";
+import { asRequest, needsApproval, withPending } from "@/lib/approvals";
 import { thisDevice } from "@/lib/change-origin";
 import { idbGet, idbSet } from "@/lib/idb";
 import {
@@ -45,8 +46,12 @@ type OpInput = LedgerOp extends infer T ? (T extends LedgerOp ? Omit<T, "opId" |
 export interface LedgerState {
   /** The logged-in user (null until known). */
   me: Me | null;
-  /** Ledger with the unsent changes already applied. */
+  /** Ledger with the unsent changes and the sellers' changes waiting for the owner applied (what the screens show). */
   ledger: Ledger | null;
+  /** Records made or changed by a change waiting for the owner (shown ⏳). */
+  pendingIds: Set<string>;
+  /** Waiting changes that can no longer be applied as they are, with why. */
+  brokenApprovals: Map<string, string>;
   summaries: ClientSummary[];
   today: string;
   online: boolean;
@@ -68,6 +73,9 @@ export interface LedgerState {
   /** DEV ONLY: forget this device's unsent changes and reload from the (emptied) sheet. */
   clearDevice: () => Promise<void>;
 }
+
+const EMPTY_IDS = new Set<string>();
+const EMPTY_BROKEN = new Map<string, string>();
 
 function isTemporary(e: unknown): boolean {
   return e instanceof ApiError && (e.status === 0 || e.status === 401 || e.status === 429 || e.status >= 500);
@@ -236,16 +244,20 @@ export function useLedger(): LedgerState {
     };
   }, [sync]);
 
-  const ledger = useMemo(() => {
+  const base = useMemo(() => {
     if (!loaded || !snapshot) return null;
     return applyOps(snapshot.ledger, queue.filter((q) => q.status === "pending").map((q) => q.op));
   }, [loaded, snapshot, queue]);
+  const view = useMemo(() => (base ? withPending(base) : null), [base]);
+  const ledger = view?.ledger ?? null;
 
   const summaries = useMemo(() => (ledger ? summarize(ledger, today) : []), [ledger, today]);
 
   return {
     me,
     ledger,
+    pendingIds: view?.pendingIds ?? EMPTY_IDS,
+    brokenApprovals: view?.broken ?? EMPTY_BROKEN,
     summaries,
     today,
     online,
@@ -259,7 +271,12 @@ export function useLedger(): LedgerState {
     run: (label, ...ops) => {
       // Who and where (the server re-stamps the account): shown if this change ever conflicts.
       const origin = { by: me?.name ?? "", device: thisDevice() };
-      const items = ops.map((o) => ({ op: { ...o, opId: newLedgerId("O"), at: stamp(), ...origin } as LedgerOp, label, status: "pending" as const }));
+      const items = ops.map((o) => {
+        const op = { ...o, opId: newLedgerId("O"), at: stamp(), ...origin } as LedgerOp;
+        // A seller's credit change waits for the owner (the server does the same).
+        const wait = ledger ? needsApproval(me, op, ledger) : false;
+        return { op: wait ? asRequest(op) : op, label: wait ? `⏳ ${label}` : label, status: "pending" as const };
+      });
       saveQueue([...queueRef.current, ...items]);
       void sync();
     },
