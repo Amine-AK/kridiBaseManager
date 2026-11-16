@@ -1228,3 +1228,11 @@ a.btn { text-decoration: none; }
 .note-call { font-size: 12px; margin-inline-start: 4px; }
 .notebook-empty { margin: 0; padding-inline: 58px 12px; line-height: var(--rule); color: var(--muted); }
 .tab-count.note-count { background: var(--warn); }
+/* الكناش as notifications (useNoteAlerts.ts): unread count, news box, highlighted lines. */
+.tab-count.note-unread { background: var(--info); }
+.note-news ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 4px; }
+.note-news { justify-items: stretch; }
+.note-news-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.note-notify { display: flex; }
+.note-line.fresh { background: color-mix(in srgb, var(--info-soft) 75%, transparent); }
+.note-line.fresh .note-text { font-weight: 700; }

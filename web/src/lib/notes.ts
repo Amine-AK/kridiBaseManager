@@ -46,3 +46,37 @@ export function notePages(notes: Note[]): { date: string; notes: Note[] }[] {
   }
   return pages;
 }
+
+/** Something another account did in the notebook (a notification). */
+export interface NoteEvent {
+  note: Note;
+  kind: "new" | "done" | "edit";
+  by: string;
+  /** ISO time of the change. */
+  at: string;
+  /** Same change, same key: announced once. */
+  key: string;
+}
+
+/**
+ * What others did in the notebook after `since` (ISO), newest first: a new line,
+ * a line ticked off, or a line changed. The account's own changes are not news.
+ */
+export function noteEvents(notes: Note[], since: string, me: string): NoteEvent[] {
+  const out: NoteEvent[] = [];
+  for (const n of notes) {
+    const ev = (kind: NoteEvent["kind"], by: string, at: string) => out.push({ note: n, kind, by, at, key: `${n.id}@${n.updatedAt}` });
+    if (n.createdAt > since && n.author && n.author !== me) ev("new", n.author, n.createdAt);
+    else if (n.done && n.doneAt > since && n.doneBy && n.doneBy !== me) ev("done", n.doneBy, n.doneAt);
+    else if (n.updatedAt > since && n.by && n.by !== me) ev("edit", n.by, n.updatedAt);
+  }
+  return out.sort((a, b) => b.at.localeCompare(a.at));
+}
+
+/** «✍️ Said كتب فالكناش: …» */
+export function eventText(e: NoteEvent): string {
+  const what = e.kind === "new" ? (e.note.kind === "طلب زبون" ? "كتب طلب زبون" : "كتب فالكناش") : e.kind === "done" ? "دار" : "بدل";
+  const icon = e.kind === "new" ? (e.note.kind === "طلب زبون" ? "🙋" : "✍️") : e.kind === "done" ? "✓" : "✏️";
+  const text = e.note.text.length > 80 ? `${e.note.text.slice(0, 80)}…` : e.note.text;
+  return `${icon} ${e.by} ${what}: ${text}`;
+}

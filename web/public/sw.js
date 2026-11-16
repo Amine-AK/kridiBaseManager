@@ -2,7 +2,7 @@
 // It keeps the app itself (page, scripts, styles, fonts, icons) on the device.
 // Customer data is not handled here: the page keeps it in IndexedDB and syncs
 // it through /api, which is never cached.
-const VERSION = "v3";
+const VERSION = "v4";
 const STATIC_CACHE = `static-${VERSION}`;
 const PAGES_CACHE = `pages-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
@@ -102,4 +102,20 @@ self.addEventListener("fetch", (event) => {
       })(),
     );
   }
+});
+
+// A notebook notification tapped: bring the app forward on الكناش.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const client = all[0];
+      if (client) {
+        client.postMessage({ type: "open-view", view: event.notification.data?.open || "notes" });
+        return client.focus();
+      }
+      return self.clients.openWindow("/?view=notes");
+    })(),
+  );
 });
