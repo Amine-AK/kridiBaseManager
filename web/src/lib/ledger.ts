@@ -24,6 +24,8 @@ export interface Client {
   /** yyyy-mm-dd or "" */
   nextDueDate: string;
   notes: string;
+  /** 0 = normal (default), 1 = special: accounts set to «special only» follow just these. */
+  type?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -399,7 +401,7 @@ export const isLedgerId = (s: unknown): s is string => typeof s === "string" && 
 
 type OpBody =
   | { type: "client.add"; client: Client }
-  | { type: "client.update"; id: string; base: string; patch: Partial<Pick<Client, "name" | "phone" | "phones" | "notes" | "nextDueDate">> }
+  | { type: "client.update"; id: string; base: string; patch: Partial<Pick<Client, "name" | "phone" | "phones" | "notes" | "nextDueDate" | "type">> }
   /** withHistory: also delete their purchases, payments and instalment changes (their sales are cancelled). */
   | { type: "client.delete"; id: string; withHistory?: boolean }
   | { type: "client.installment"; id: string; base: string; change: InstallmentChange; nextDueDate?: string }
@@ -489,6 +491,7 @@ function checkClient(c: Client): string | null {
     return "أرقام الهاتف الأخرى غير صحيحة";
   }
   if (!money(c.installment)) return "مبلغ الطريطة غير صحيح";
+  if (c.type !== undefined && c.type !== 0 && c.type !== 1) return "نوع الزبون غير صحيح";
   if (!date(c.nextDueDate) || !text(c.createdAt, 40)) return "التاريخ غير صحيح";
   return null;
 }
@@ -635,7 +638,7 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
       if (!c) return invalid(ledger, "الزبون ما بقاش");
       if (c.updatedAt === op.at) return { ledger, result: "already" };
       if (c.updatedAt !== op.base) return { ledger, result: "conflict", message: CONFLICT };
-      const next = { ...c, ...pick<Client>(op.patch, ["name", "phone", "phones", "notes", "nextDueDate"]), updatedAt: op.at };
+      const next = { ...c, ...pick<Client>(op.patch, ["name", "phone", "phones", "notes", "nextDueDate", "type"]), updatedAt: op.at };
       const err = checkClient(next);
       if (err) return invalid(ledger, err);
       return { ledger: { ...ledger, clients: replace(ledger.clients, c.id, next) }, result: "ok" };

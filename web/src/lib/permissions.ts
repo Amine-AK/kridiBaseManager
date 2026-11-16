@@ -1,7 +1,8 @@
 // Rules about who may do what, as pure functions (used by the server routes, and tested).
 
 import { CREDIT_OPS, SERVICE_CONTACTS_KEY, type Ledger, type LedgerOp } from "./ledger";
-import { can, seesCost, type Me, type Permission } from "./roles";
+import { describe } from "./approvals";
+import { can, newClientType, seesCost, specialOnly, type ClientType, type Me, type Permission } from "./roles";
 
 /** May this user make this change (sent from a phone)? */
 export function opAllowed(me: Me, op: LedgerOp): boolean {
@@ -93,6 +94,15 @@ export function stampOp(me: Me, op: LedgerOp, ledger: Ledger): LedgerOp {
       return op.move ? { ...op, move: { ...op.move, seller: me.name } } : op;
     case "caisse.close":
       return op.close ? { ...op, close: { ...op.close, clerk: me.name } } : op;
+    case "client.add":
+      // Only the owner chooses the type; an account following only special customers makes special ones.
+      return op.client && typeof op.client === "object" ? { ...op, client: { ...op.client, type: newClientType(me, (op.client.type === 1 ? 1 : 0) as ClientType) } } : op;
+    case "client.update": {
+      if (me.role === "owner" || !op.patch || !("type" in op.patch)) return op;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { type, ...patch } = op.patch;
+      return { ...op, patch };
+    }
     case "approval.add":
       // The change inside is stamped like any other (who sold, the cost of a credit sale).
       return op.op && typeof op.op === "object" ? { ...op, op: { ...stampOp(me, op.op, ledger), by: me.name, device: op.device } } : op;
@@ -108,8 +118,41 @@ export function stampOp(me: Me, op: LedgerOp, ledger: Ledger): LedgerOp {
   }
 }
 
+/**
+ * An account that follows only the special customers can't change another
+ * customer's account (its screens don't show them; this guards the server).
+ */
+export function outOfScope(me: Me, op: LedgerOp, ledger: Ledger): boolean {
+  if (!specialOnly(me)) return false;
+  const inner = op.type === "approval.add" && op.op && typeof op.op === "object" ? op.op : op;
+  if (!CREDIT_OPS.has(inner.type) && inner.type !== "claim.add") return false;
+  const id = inner.type === "claim.add" ? inner.claim?.clientId ?? "" : describe(inner, ledger).clientId;
+  const client = id ? ledger.clients.find((c) => c.id === id) : undefined;
+  // Unknown (a new customer still waiting for the owner) = theirs.
+  return Boolean(client && client.type !== 1);
+}
+
+/** Keep only what concerns the special customers (type 1). */
+function specialView(ledger: Ledger): Ledger {
+  const ids = new Set(ledger.clients.filter((c) => c.type === 1).map((c) => c.id));
+  const known = new Set(ledger.clients.map((c) => c.id));
+  // A customer still waiting for the owner (not in the sheet yet) was made by them: kept.
+  const mine = (id: string) => !id || ids.has(id) || !known.has(id);
+  return {
+    ...ledger,
+    clients: ledger.clients.filter((c) => ids.has(c.id)),
+    purchases: ledger.purchases.filter((p) => ids.has(p.clientId)),
+    payments: ledger.payments.filter((p) => ids.has(p.clientId)),
+    changes: ledger.changes.filter((x) => ids.has(x.clientId)),
+    sales: ledger.sales.filter((s) => s.type !== "كريدي" || ids.has(s.clientId)),
+    approvals: ledger.approvals.filter((a) => mine(describe(a.op, ledger).clientId)),
+    claims: ledger.claims.filter((c) => !c.clientId || ids.has(c.clientId)),
+  };
+}
+
 /** The ledger as this user may see it. */
 export function ledgerFor(me: Me, ledger: Ledger): Ledger {
+  if (specialOnly(me)) ledger = specialView(ledger);
   // Repairs hold customers' names and phones: only for accounts that do repairs. Whoever
   // closes the cash drawer still gets their advances (amount, time, device), nothing personal.
   if (!can(me, "repairs")) {

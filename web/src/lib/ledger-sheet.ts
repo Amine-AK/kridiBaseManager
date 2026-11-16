@@ -75,6 +75,7 @@ export const HEADERS: Record<TableKey, string[]> = {
   clients: [
     "رقم الزبون", "الاسم", "الهاتف", "الطريطة", "المدة", "الدفعة المقبلة", "ملاحظات",
     "مجموع المشتريات", "مجموع المدفوع", "المتبقي", "آخر دفعة", "تاريخ الإضافة", "آخر تعديل", "أرقام أخرى",
+    "نوع الزبون (0 عادي، 1 خاص)",
   ],
   purchases: ["رقم العملية", "رقم الزبون", "الزبون", "التاريخ", "السلعة", "ثمن البيع", "ملاحظات", "تاريخ الإضافة", "آخر تعديل"],
   payments: [
@@ -146,6 +147,8 @@ export function rowToClient(r: unknown[]): Client | null {
     createdAt: s(r[11]),
     updatedAt: s(r[12]),
     ...(lines(r[13]).length ? { phones: lines(r[13]) } : {}),
+    // Empty (older rows) or anything but 1 = a normal customer (no type kept).
+    ...(n(r[14]) === 1 ? { type: 1 } : {}),
   };
 }
 
@@ -421,7 +424,7 @@ export function ledgerToRows(ledger: Ledger, today = todayISO()): Record<TableKe
     const sum = summarizeClient(ledger, c, today);
     clients.set(c.id, [
       c.id, c.name, c.phone, money(c.installment), c.period, c.nextDueDate, c.notes,
-      sum.total, sum.paid, sum.remaining, sum.lastPaymentDate, c.createdAt, c.updatedAt, (c.phones ?? []).join("\n"),
+      sum.total, sum.paid, sum.remaining, sum.lastPaymentDate, c.createdAt, c.updatedAt, (c.phones ?? []).join("\n"), c.type === 1 ? 1 : 0,
     ]);
   }
   const purchases = new Map<string, Cell[]>(

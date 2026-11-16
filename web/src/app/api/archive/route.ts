@@ -1,5 +1,6 @@
 import { handleError, jsonError, readJson } from "@/lib/api";
 import { requireUser } from "@/lib/access";
+import { specialOnly } from "@/lib/roles";
 import { isLedgerId } from "@/lib/ledger";
 import { archive, searchArchive } from "@/lib/store";
 
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
   const q = new URL(request.url).searchParams.get("q") ?? "";
   if (q.length > 100) return jsonError("البحث طويل بزاف", 400);
   try {
-    return Response.json({ ledger: await searchArchive(q) });
+    return Response.json({ ledger: await searchArchive(q, specialOnly(me)) });
   } catch (e) {
     return handleError(e);
   }
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
     return jsonError("أرقام الزبناء غير صحيحة", 400);
   }
   try {
-    return Response.json({ archived: await archive(body.ids) });
+    return Response.json({ archived: await archive(body.ids, specialOnly(me)) });
   } catch (e) {
     return handleError(e);
   }

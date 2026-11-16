@@ -459,6 +459,20 @@ A main tab that looks like the paper notebook next to the till, for every accoun
   arrives (that needs a push server, not set up); on iPhone only the installed app
   can show notifications.
 
+### ⭐ Special customers and who follows them
+
+- The tab الزبناء has a last column «نوع الزبون (0 عادي، 1 خاص)»: **0** = normal
+  (the default, also for older rows), **1** = special. Special customers show ⭐ in
+  the list and «⭐ زبون خاص» on their page.
+- Only the owner sets it: «⭐ زبون خاص (نوع 1)» in «زبون جديد» and «تعديل المعلومات»
+  (or type 1 directly in the sheet).
+- In ⚙️ → المستخدمين, each **seller** account has «الزبناء لي كيتبع»:
+  «👥 جميع الزبناء» (default) or «⭐ غير الخاصين». An account set to special only
+  sees just the special customers and their credit (also in reminders and the
+  archive), can't change anything on the others (the server refuses it), and the
+  customers it adds are special. Its cash sales and the notebook are unchanged.
+  Saved in the last column of «المستخدمين» («الزبناء لي كيتبع»).
+
 ### ⏳ Sellers' credit changes wait for the owner (طلبات الموافقة)
 
 Whatever a **seller** account changes about credit (new customer, credit sale,

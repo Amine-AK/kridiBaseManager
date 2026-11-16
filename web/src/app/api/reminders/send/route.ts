@@ -1,5 +1,5 @@
 import { handleError, jsonError, readJson } from "@/lib/api";
-import { requireUser } from "@/lib/access";
+import { ledgerFor, requireUser } from "@/lib/access";
 import { watiConfigured } from "@/lib/env";
 import { summarize } from "@/lib/ledger";
 import { logTimestamp, reminderBlocker, reminderParams, sentToday } from "@/lib/reminders";
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
   try {
     const today = todayISO();
-    const [ledger, log] = await Promise.all([loadLedger(), readReminderLog()]);
+    const [ledger, log] = await Promise.all([loadLedger().then((l) => ledgerFor(me, l)), readReminderLog()]);
     const summaries = new Map(summarize(ledger, today).map((s) => [s.client.id, s]));
     const results: Result[] = [];
     const newLog: ReminderLogEntry[] = [];

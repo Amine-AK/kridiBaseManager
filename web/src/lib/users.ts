@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { checkPassword } from "./auth";
-import { isService, type Me, type Role, type Service } from "./roles";
+import { isService, type ClientScope, type Me, type Role, type Service } from "./roles";
 import { appendRows, ensureTabs, findTab, readIds, readTables, updateRows, type Cell } from "./sheets";
 
 // Employee accounts, in their own tab «المستخدمين». Passwords are stored hashed
@@ -12,7 +12,9 @@ import { appendRows, ensureTabs, findTab, readIds, readTables, updateRows, type 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>;
 
 export const USERS_TAB = "المستخدمين";
-const HEADER = ["رقم", "الاسم", "اسم الدخول", "الدور", "الخدمات", "يشوف ثمن الشراء والربح", "مفعل", "كلمة السر (مشفرة)", "تاريخ الإضافة", "آخر تعديل"];
+const HEADER = ["رقم", "الاسم", "اسم الدخول", "الدور", "الخدمات", "يشوف ثمن الشراء والربح", "مفعل", "كلمة السر (مشفرة)", "تاريخ الإضافة", "آخر تعديل", "الزبناء لي كيتبع"];
+/** Column «الزبناء لي كيتبع»: all customers, or only the special ones (type 1). */
+const SCOPE_TEXT: Record<ClientScope, string> = { all: "الكل", special: "غير الخاصين" };
 export const OWNER_LOGIN = "owner";
 export const MIN_PASSWORD = 8;
 
@@ -61,11 +63,12 @@ function rowToUser(r: unknown[]): UserRecord | null {
     passwordHash: s(7),
     createdAt: s(8),
     updatedAt: s(9),
+    clientScope: role === "seller" && s(10) === SCOPE_TEXT.special ? "special" : "all",
   };
 }
 
 function userToRow(u: UserRecord): Cell[] {
-  return [u.id, u.name, u.login, u.role, u.services.join(","), u.seeCost ? "نعم" : "لا", u.active ? "نعم" : "لا", u.passwordHash, u.createdAt, u.updatedAt];
+  return [u.id, u.name, u.login, u.role, u.services.join(","), u.seeCost ? "نعم" : "لا", u.active ? "نعم" : "لا", u.passwordHash, u.createdAt, u.updatedAt, SCOPE_TEXT[u.clientScope ?? "all"]];
 }
 
 let cache: { at: number; users: UserRecord[] } | null = null;
@@ -94,7 +97,7 @@ export async function authenticate(login: string, password: string): Promise<{ m
   return { me: toMe(user), pv: passwordVersion(user) };
 }
 
-export const toMe = (u: UserRecord): Me => ({ id: u.id, name: u.name, role: u.role, services: u.services, seeCost: u.seeCost });
+export const toMe = (u: UserRecord): Me => ({ id: u.id, name: u.name, role: u.role, services: u.services, seeCost: u.seeCost, clientScope: u.clientScope ?? "all" });
 
 /** The account behind a session, if still active and with the same password. */
 export async function userForSession(uid: string, pv: string): Promise<Me | null> {
@@ -111,6 +114,8 @@ export interface UserInput {
   role: Role;
   services: Service[];
   seeCost: boolean;
+  /** Sellers: follow all customers, or only the special ones. */
+  clientScope?: ClientScope;
   active: boolean;
   /** New password; empty = keep the current one. */
   password?: string;
@@ -140,6 +145,7 @@ export async function saveUser(input: UserInput): Promise<PublicUser> {
     role: input.role,
     services: input.role === "seller" ? input.services.filter(isService) : [],
     seeCost: input.role === "owner" ? true : Boolean(input.seeCost),
+    clientScope: input.role === "seller" && input.clientScope === "special" ? "special" : "all",
     active: Boolean(input.active),
     passwordHash: input.password ? await hashPassword(input.password) : old!.passwordHash,
     createdAt: old?.createdAt ?? now,
@@ -148,8 +154,12 @@ export async function saveUser(input: UserInput): Promise<PublicUser> {
   if (old) {
     const row = (await readIds([USERS_TAB]))[USERS_TAB].indexOf(old.id) + 2;
     if (row < 2) throw new UserError("هاد الحساب ما بقاش");
-    await updateRows([{ title: USERS_TAB, row, values: userToRow(user) }]);
-  } else await appendRows(USERS_TAB, [userToRow(user)]);
+    // Row 1 too: a tab made before a column was added gets its title.
+    await updateRows([{ title: USERS_TAB, row: 1, values: HEADER }, { title: USERS_TAB, row, values: userToRow(user) }]);
+  } else {
+    await updateRows([{ title: USERS_TAB, row: 1, values: HEADER }]);
+    await appendRows(USERS_TAB, [userToRow(user)]);
+  }
   cache = null;
   return publicUser(user);
 }

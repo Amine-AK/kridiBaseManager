@@ -702,6 +702,7 @@ function ClientRow({ s, today, waiting, onOpen, onPay }: { s: ClientSummary; tod
         <span className="row-main">
           <span className="row-name">
             {c.name}
+            {c.type === 1 && <span className="special-star" title="زبون خاص">⭐</span>}
             {waiting > 0 && <span className="pending-dot" title={`${waiting} تعديل كيتسنى موافقة المالك`}>⏳</span>}
           </span>
           <span className="row-sub">
@@ -751,6 +752,7 @@ function ClientCard({ s, today, waiting, onOpen, onPay }: { s: ClientSummary; to
           <div className="card-who">
             <h3>
               {c.name}
+              {c.type === 1 && <span className="special-star" title="زبون خاص">⭐</span>}
               {waiting > 0 && <span className="pending-dot" title={`${waiting} تعديل كيتسنى موافقة المالك`}>⏳</span>}
             </h3>
             {c.phone && (

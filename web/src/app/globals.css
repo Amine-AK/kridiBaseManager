@@ -1236,3 +1236,6 @@ a.btn { text-decoration: none; }
 .note-notify { display: flex; }
 .note-line.fresh { background: color-mix(in srgb, var(--info-soft) 75%, transparent); }
 .note-line.fresh .note-text { font-weight: 700; }
+/* Special customers (type 1, column «نوع الزبون»). */
+.special-star { margin-inline-start: 4px; font-size: 13px; }
+.pill.special { background: var(--warn-soft); color: var(--warn); }

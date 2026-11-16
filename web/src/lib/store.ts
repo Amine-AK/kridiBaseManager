@@ -147,10 +147,12 @@ type ArchiveKey = keyof typeof ARCHIVE_TABS;
  * Move customers who finished paying more than 3 months ago (or the given
  * ones, if fully paid) to the archive tabs, with their purchases and payments.
  */
-export async function archive(ids?: string[]): Promise<number> {
+/** `onlySpecial`: an account following only the special customers archives only those. */
+export async function archive(ids?: string[], onlySpecial = false): Promise<number> {
   const ledger = await loadLedger();
   const today = todayISO();
   const chosen = summarize(ledger, today)
+    .filter((s) => !onlySpecial || s.client.type === 1)
     .filter((s) => (ids ? ids.includes(s.client.id) && s.remaining <= 0 : s.archivable))
     .map((s) => s.client.id);
   if (!chosen.length) return 0;
@@ -189,9 +191,9 @@ async function loadArchive(): Promise<{ ledger: Ledger; raw: Record<ArchiveKey, 
 }
 
 /** Archived customers whose name or phone matches (at most 50). */
-export async function searchArchive(query: string): Promise<Ledger> {
+export async function searchArchive(query: string, onlySpecial = false): Promise<Ledger> {
   const { ledger } = await loadArchive();
-  const found = ledger.clients.filter((c) => matchesClient(c.name, clientPhones(c), query)).slice(0, 50);
+  const found = ledger.clients.filter((c) => (!onlySpecial || c.type === 1) && matchesClient(c.name, clientPhones(c), query)).slice(0, 50);
   const ids = new Set(found.map((c) => c.id));
   return {
     ...emptyLedger(),
@@ -202,10 +204,10 @@ export async function searchArchive(query: string): Promise<Ledger> {
 }
 
 /** Bring an archived customer back to the active tabs (e.g. they buy again). */
-export async function restore(clientId: string): Promise<boolean> {
+export async function restore(clientId: string, onlySpecial = false): Promise<boolean> {
   const { ledger } = await loadArchive();
   const client = ledger.clients.find((c) => c.id === clientId);
-  if (!client) return false;
+  if (!client || (onlySpecial && client.type !== 1)) return false;
   const moving: Ledger = {
     ...emptyLedger(),
     clients: [client],

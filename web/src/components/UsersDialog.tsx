@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { apiFetch } from "@/lib/client";
-import { ROLE_LABEL, SELLER_SERVICES, type Role, type Service } from "@/lib/roles";
+import { ROLE_LABEL, SELLER_SERVICES, type ClientScope, type Role, type Service } from "@/lib/roles";
 import { Modal } from "./Modal";
 import { Field } from "./ui";
 
@@ -13,6 +13,7 @@ interface User {
   role: Role;
   services: Service[];
   seeCost: boolean;
+  clientScope?: ClientScope;
   active: boolean;
   createdAt: string;
 }
@@ -86,6 +87,7 @@ export function UsersDialog({ onClose, onToast }: { onClose: () => void; onToast
                     <bdi dir="ltr">{u.login}</bdi> · {ROLE_LABEL[u.role]}
                     {u.role === "seller" ? ` · ${u.services.length} خدمة` : ""}
                     {u.role !== "owner" && u.seeCost ? " · كيشوف ثمن الشراء" : ""}
+                    {u.role === "seller" && u.clientScope === "special" ? " · ⭐ غير الزبناء الخاصين" : ""}
                   </span>
                 </span>
                 <span className="muted small">تعديل</span>
@@ -105,6 +107,7 @@ function UserForm({ user, onClose, onSaved }: { user?: User; onClose: () => void
     role: (user?.role ?? "seller") as Role,
     services: user?.services ?? (["sell_cash", "sell_credit", "payment", "client_add"] as Service[]),
     seeCost: user?.seeCost ?? false,
+    clientScope: (user?.clientScope ?? "all") as ClientScope,
     active: user?.active ?? true,
     password: "",
   });
@@ -182,6 +185,26 @@ function UserForm({ user, onClose, onSaved }: { user?: User; onClose: () => void
               </label>
             ))}
           </fieldset>
+        )}
+        {v.role === "seller" && (
+          <div className="field">
+            <span>الزبناء لي كيتبع</span>
+            <div className="segmented wide-seg" role="group" aria-label="الزبناء لي كيتبع">
+              {([
+                ["all", "👥 جميع الزبناء"],
+                ["special", "⭐ غير الخاصين"],
+              ] as [ClientScope, string][]).map(([k, label]) => (
+                <button key={k} type="button" className={v.clientScope === k ? "on" : ""} aria-pressed={v.clientScope === k} onClick={() => setV({ ...v, clientScope: k })}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="field-hint">
+              {v.clientScope === "special"
+                ? "كيشوف غير الزبناء الخاصين (نوع 1) والكريدي ديالهم. الزبناء الجداد لي كيزيد كيكونو خاصين."
+                : "كيشوف جميع الزبناء (عاديين نوع 0 وخاصين نوع 1)."}
+            </span>
+          </div>
         )}
         {v.role !== "owner" && (
           <label className="check">
