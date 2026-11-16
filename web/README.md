@@ -448,6 +448,16 @@ A main tab that looks like the paper notebook next to the till, for every accoun
 - Tap a line to change it. Only the owner can delete a line.
 - The number of customer requests not done yet shows on the tab.
 - Sheet tab «الكناش» (created on first use).
+- **Like notifications**: what another account writes, ticks off or changes in the
+  notebook is news for you until you open الكناش on that device. The tab shows the
+  number in blue; elsewhere in the app a popup says it («🙋 Said كتب طلب زبون: …»);
+  in the notebook a box «🔔 جديد من آخر مرة» lists it and the lines are highlighted.
+  Your own changes are never news. The app checks for news every minute while open.
+- **Phone notifications**: press «🔔 فعّل الإشعارات ديال الكناش فهاد الجهاز» once on each
+  phone / PC. While the app is open in the background, the news comes as a phone
+  notification; tapping it opens الكناش. When the app is fully closed nothing
+  arrives (that needs a push server, not set up); on iPhone only the installed app
+  can show notifications.
 
 ### ⏳ Sellers' credit changes wait for the owner (طلبات الموافقة)
 

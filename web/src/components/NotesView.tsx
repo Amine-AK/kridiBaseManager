@@ -1,14 +1,15 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { newLedgerId, nowParts, NOTE_KINDS, type Note, type NoteKind } from "@/lib/ledger";
-import { dayLabel, isOpenRequest, notePages, searchNotes, type NoteFilter } from "@/lib/notes";
+import { dayLabel, eventText, isOpenRequest, notePages, searchNotes, type NoteEvent, type NoteFilter } from "@/lib/notes";
 import { displayDate } from "@/lib/receipt";
 import { ownerForPhone } from "@/lib/repairs";
 import { can } from "@/lib/roles";
 import { Modal } from "./Modal";
 import { Confirm, Field } from "./ui";
 import type { LedgerState } from "./useLedger";
+import type { NoteAlerts } from "./useNoteAlerts";
 
 const KIND_ICON: Record<NoteKind, string> = { ملاحظة: "📝", "طلب زبون": "🙋" };
 
@@ -26,12 +27,24 @@ const PAGE_STEP = 14;
  * الكناش: the shop's notebook, like the paper one next to the till. Anyone writes
  * what to remember or what a customer asked for, and ticks it off when it's done.
  */
-export function NotesView({ data, onToast }: { data: LedgerState; onToast: (msg: string) => void }) {
+export function NotesView({ data, onToast, alerts }: { data: LedgerState; onToast: (msg: string) => void; alerts: NoteAlerts }) {
   const ledger = data.ledger!;
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<NoteFilter>("all");
   const [shown, setShown] = useState(PAGE_STEP);
   const [editing, setEditing] = useState<Note | null>(null);
+
+  // What others did since the last look: listed on top and highlighted in the pages for as
+  // long as the notebook stays open; as soon as it's on screen it counts as seen.
+  const [news, setNews] = useState<NoteEvent[]>([]);
+  const { events, markSeen } = alerts;
+  useEffect(() => {
+    if (events.length) {
+      setNews((old) => [...events, ...old.filter((o) => !events.some((e) => e.key === o.key))]);
+      markSeen();
+    }
+  }, [events, markSeen]);
+  const fresh = new Set(news.map((e) => e.note.id));
 
   const list = useMemo(() => searchNotes(ledger.notes, query, filter), [ledger.notes, query, filter]);
   const pages = notePages(list);
@@ -55,6 +68,36 @@ export function NotesView({ data, onToast }: { data: LedgerState; onToast: (msg:
           <span className="stat-sub">سطر تكتب</span>
         </div>
       </section>
+
+      {news.length > 0 && (
+        <section className="alert info note-news" aria-label="جديد فالكناش">
+          <div className="note-news-head">
+            <strong>🔔 جديد من آخر مرة</strong>
+            <button type="button" className="link-btn" onClick={() => setNews([])}>
+              مفهوم ✓
+            </button>
+          </div>
+          <ul>
+            {news.slice(0, 8).map((e) => (
+              <li key={e.key}>
+                {eventText(e)} <bdi dir="ltr" className="muted small">{whenShort(e.at, data.today)}</bdi>
+              </li>
+            ))}
+          </ul>
+          {news.length > 8 && <p className="muted small">و {news.length - 8} أخرين، مضويين فالصفحات لتحت.</p>}
+        </section>
+      )}
+      {alerts.permission !== "unsupported" && alerts.permission !== "granted" && (
+        <div className="note-notify">
+          {alerts.permission === "denied" ? (
+            <p className="muted small">🔕 الإشعارات مسدودة فهاد الجهاز. حلها من إعدادات المتصفح باش يوصلك الجديد ديال الكناش.</p>
+          ) : (
+            <button type="button" className="btn small-btn" onClick={() => void alerts.enable()}>
+              🔔 فعّل الإشعارات ديال الكناش فهاد الجهاز
+            </button>
+          )}
+        </div>
+      )}
 
       <NoteWriter data={data} onToast={onToast} />
 
@@ -81,7 +124,7 @@ export function NotesView({ data, onToast }: { data: LedgerState; onToast: (msg:
             </h3>
             <ul className="notebook-lines">
               {p.notes.map((n) => (
-                <li key={n.id} className={`note-line ${n.done ? "done" : ""}`}>
+                <li key={n.id} className={`note-line ${n.done ? "done" : ""} ${fresh.has(n.id) ? "fresh" : ""}`}>
                   <bdi dir="ltr" className="note-time">
                     {n.time}
                   </bdi>
@@ -138,6 +181,12 @@ export function NotesView({ data, onToast }: { data: LedgerState; onToast: (msg:
       )}
     </div>
   );
+}
+
+/** «14:32» today, else «15/11 14:32» (shop time). */
+function whenShort(iso: string, today: string): string {
+  const p = nowParts(new Date(iso));
+  return p.date === today ? p.time : `${p.date.slice(8, 10)}/${p.date.slice(5, 7)} ${p.time}`;
 }
 
 /** Customer's name from the phone, from the data on the device (customers, earlier repairs). */

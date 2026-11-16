@@ -21,6 +21,8 @@ import { todayISO } from "@/lib/sheet-logic";
 const SNAPSHOT_KEY = "ledger-snapshot";
 const QUEUE_KEY = "ledger-queue";
 const RETRY_EVERY_MS = 30_000;
+/** Fetch others' changes this often while the app is open (the notebook's notifications need it). */
+const REFRESH_EVERY_MS = 60_000;
 const BATCH = 50;
 
 /** A change made on this device, waiting to reach the sheet (or refused). */
@@ -107,6 +109,7 @@ export function useLedger(): LedgerState {
   // A change made while a sync was running: send it as soon as that sync ends (not 30 s later).
   const again = useRef(false);
   const syncRef = useRef<() => Promise<void>>(async () => {});
+  const lastPull = useRef(0);
 
   const saveSnapshot = useCallback((s: Snapshot) => {
     snapRef.current = s;
@@ -122,6 +125,7 @@ export function useLedger(): LedgerState {
 
   const pull = useCallback(async () => {
     const data = await apiFetch<{ ledger?: Ledger; today: string; needsSetup?: boolean; devReset?: boolean; me?: Me }>("/api/data");
+    lastPull.current = Date.now();
     setDevReset(Boolean(data.devReset));
     if (data.me) setMe(data.me);
     setToday(data.today);
@@ -234,7 +238,8 @@ export function useLedger(): LedgerState {
     window.addEventListener("offline", goOffline);
     document.addEventListener("visibilitychange", onVisible);
     const timer = setInterval(() => {
-      if (navigator.onLine && queueRef.current.some((q) => q.status === "pending")) void sync();
+      if (!navigator.onLine) return;
+      if (queueRef.current.some((q) => q.status === "pending") || Date.now() - lastPull.current >= REFRESH_EVERY_MS) void sync();
     }, RETRY_EVERY_MS);
     return () => {
       window.removeEventListener("online", goOnline);

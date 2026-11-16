@@ -21,6 +21,7 @@ import { SaleTicketDialog } from "./SaleTicket";
 import { StockView } from "./StockView";
 import { RepairsView } from "./RepairsView";
 import { NotesView } from "./NotesView";
+import { useNoteAlerts } from "./useNoteAlerts";
 import { isOpenRequest } from "@/lib/notes";
 import { ClaimsView, ServiceContactsDialog, useNow } from "./ClaimsView";
 import { lateClaims } from "@/lib/claims";
@@ -202,6 +203,27 @@ export function Dashboard() {
   const [toast, setToast] = useState("");
   const [archiving, setArchiving] = useState(false);
 
+  // The notebook as notifications (what others wrote / ticked / changed).
+  const noteAlerts = useNoteAlerts(data, setToast, current === "notes");
+  const unreadNotes = noteAlerts.events.length;
+
+  // A notebook notification tapped (service worker message, or the app opened from it).
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === "open-view" && VIEWS.some((v) => v.value === e.data.view)) setView(e.data.view);
+    };
+    navigator.serviceWorker?.addEventListener("message", onMessage);
+    try {
+      const asked = new URLSearchParams(window.location.search).get("view");
+      if (asked && VIEWS.some((v) => v.value === asked)) {
+        setView(asked as View);
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    } catch {}
+    return () => navigator.serviceWorker?.removeEventListener("message", onMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 3500);
@@ -332,7 +354,12 @@ export function Dashboard() {
             <span>
               {v.label}
               {v.value === "repairs" && lateCount > 0 && <bdi className="tab-count" title="طلبات خدمة الشركة لي فاتو 48 ساعة">{lateCount}</bdi>}
-              {v.value === "notes" && openNotes > 0 && <bdi className="tab-count note-count" title="طلبات الزبناء لي باقي ما تداروش">{openNotes}</bdi>}
+              {v.value === "notes" &&
+                (unreadNotes > 0 ? (
+                  <bdi className="tab-count note-unread" title="جديد فالكناش">{unreadNotes}</bdi>
+                ) : (
+                  openNotes > 0 && <bdi className="tab-count note-count" title="طلبات الزبناء لي باقي ما تداروش">{openNotes}</bdi>
+                ))}
             </span>
           </button>
         ))}
@@ -350,7 +377,7 @@ export function Dashboard() {
           </section>
         )}
         {current === "stock" && data.ledger && <StockView data={data} onToast={setToast} />}
-        {current === "notes" && data.ledger && <NotesView data={data} onToast={setToast} />}
+        {current === "notes" && data.ledger && <NotesView data={data} onToast={setToast} alerts={noteAlerts} />}
         {current === "repairs" && data.ledger && (() => {
           // Only the parts of الإصلاح this account may open.
           const tabs = REPAIR_TABS.filter((b) => allow(b.value));

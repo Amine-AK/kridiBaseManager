@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyOp, emptyLedger, type LedgerOp, type Note } from "./ledger";
-import { dayLabel, isOpenRequest, notePages, searchNotes } from "./notes";
+import { dayLabel, eventText, isOpenRequest, noteEvents, notePages, searchNotes } from "./notes";
 import { opAllowed } from "./permissions";
 import type { Me } from "./roles";
 
@@ -45,5 +45,21 @@ describe("notebook", () => {
     expect(dayLabel("2026-11-15", "2026-11-16")).toBe("البارح");
     expect(dayLabel("2026-11-01", "2026-11-16")).toBe("01/11/2026");
     expect(isOpenRequest(list[0])).toBe(true);
+  });
+  it("tells what others did since the last look, never one's own changes", () => {
+    const since = "2026-11-16T10:00:00.000Z";
+    const list = [
+      note({ id: "N-1", author: "Said", createdAt: "2026-11-16T11:00:00.000Z", updatedAt: "2026-11-16T11:00:00.000Z" }),
+      note({ id: "N-2", author: "Mustapha", createdAt: "2026-11-16T11:30:00.000Z", updatedAt: "2026-11-16T11:30:00.000Z" }),
+      note({ id: "N-3", author: "Mustapha", done: true, doneBy: "Karim", doneAt: "2026-11-16T12:00:00.000Z", updatedAt: "2026-11-16T12:00:00.000Z", by: "Karim" }),
+      note({ id: "N-4", author: "Mustapha", updatedAt: "2026-11-16T12:30:00.000Z", by: "Said", kind: "ملاحظة", text: "الضو طافي" }),
+      note({ id: "N-5", author: "Said", updatedAt: "2026-11-16T09:00:00.000Z", by: "Said" }),
+    ];
+    const ev = noteEvents(list, since, "Mustapha");
+    expect(ev.map((e) => [e.note.id, e.kind, e.by])).toEqual([["N-4", "edit", "Said"], ["N-3", "done", "Karim"], ["N-1", "new", "Said"]]);
+    expect(eventText(ev[2])).toBe("🙋 Said كتب طلب زبون: بغا شارجور Type-C");
+    expect(eventText(ev[0])).toBe("✏️ Said بدل: الضو طافي");
+    // Seen later: nothing new.
+    expect(noteEvents(list, "2026-11-16T13:00:00.000Z", "Mustapha")).toEqual([]);
   });
 });

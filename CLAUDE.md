@@ -39,6 +39,7 @@ reminders. Installable PWA, used on phones and the shop PC, works offline.
 - Per-device settings go in `localStorage` (try/catch every access). Keys in use:
   `theme`, `label-setup`, `label-size`, `label-price`, `receipt-paper`,
   `scanner-camera`, `backup-last`, `backup-snooze`, `device-id`,
+  `notes-seen` (account → ISO time الكناش was last looked at),
   `label-print-test` (old, migrated). The ledger snapshot and the queue of
   unsent ops are in IndexedDB (`ledger-snapshot`, `ledger-queue`).
   Per tab (`sessionStorage`): `view` (main tab), `budget-tab` (الصندوق / التقارير),
@@ -56,7 +57,8 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 - Sync loop (`useLedger.ts`): accepted ops are applied to the local snapshot as
   they leave the queue (the screen must never fall back to the old copy while
   `/api/data` reloads, or edits made then get a stale `base` → «conflict»);
-  ops added while a sync runs are sent right after it (`again` flag).
+  ops added while a sync runs are sent right after it (`again` flag). While the app is open it
+  also refreshes every 60 s (`REFRESH_EVERY_MS`), so others' changes (notebook notifications) arrive.
 - Change origin (`src/lib/change-origin.ts`): each op carries `device` (label made
   on the device: system · browser · `#id` from localStorage `device-id`) and `by`
   (account name, **stamped by the server** in `/api/sync`). Products keep the last
@@ -117,7 +119,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Repairs (الإصلاح): devices brought to repair (photo, owner, problem, price, advance, status, own barcode, sticker / image, WhatsApp received / ready / delivered; 🤝 تسلم opens `DeliverDialog`: delivered date / time, final price, `paid` then, shop `cost`; profit for `seesCost`; the form's phone fills the owner's name from الزبناء or past repairs on the device, `ownerForPhone`, no request); service `repairs` (server hides repairs from accounts without it, `ledgerFor`; an account with «الصندوق» but not «الإصلاح» gets the repairs with money only, no owner / phone / problem / photo). On a repair `device` = the repaired device, the recording device is `origin` | `components/RepairsView.tsx`, `lib/repairs.ts` (pure, tested), `Repair` in `lib/ledger.ts`, photo `photoForCell` in `lib/image.ts` |
 | After-sales requests (خدمة الشركة, sub-tab of الإصلاح, `REPAIR_TABS` in `Dashboard.tsx`): a sold product has a fault the brand's service must repair. «🏭 ريكلاماسيون» on the customer page (their purchases) or «＋ طلب جديد» (any sale, cash too, or typed by hand) → choose the brand's service → saved (`Claim`) and WhatsApp opens on the service's number. Late = open and 48 h since `lastSentAt` (request or last reminder, Sundays included): red, counted on the tabs, «🔔 ذكّر الشركة» (reminder message, `reminders` + 1). Brands' numbers: setting `service-contacts` (⚙️ menu «خدمة العملاء»). Service `claims` (server hides requests without it; `setting.save` of `service-contacts` needs it) | `components/ClaimsView.tsx` (`ClaimsView`, `ClaimForm`, `ServiceContactsDialog`, `useNow`), `lib/claims.ts` (pure, tested), `Claim` in `lib/ledger.ts`, flag on purchases in `components/ClientDetail.tsx` |
 | Approvals of sellers' credit changes: bar in الكريدي (`ApprovalsBar`), list grouped by customer with ✓ قبول / ✕ رفض / ✓ قبل الكل / 📝 قبول بملاحظة, seller's «📝 زيد ملاحظة للمالك» (`ApprovalsDialog`, also from the customer page banner), ⏳ on customers and rows | `components/ApprovalsView.tsx`, `lib/approvals.ts` (pure, tested), `components/ClientDetail.tsx`, `Dashboard.tsx` |
-| Notebook (الكناش, main tab): ruled-paper page, write a line at once (📝 ملاحظة / 🙋 طلب زبون, optional customer: name fills from the phone via `ownerForPhone`, on-device data), pages per day, ✓ tick (who / when), search + filters, edit; every account writes and ticks, only the owner deletes. Paper colours `--paper`, `--paper-line`, `--paper-margin` | `components/NotesView.tsx`, `lib/notes.ts` (pure, tested), `Note` in `lib/ledger.ts`, `.notebook*` / `.note-*` in `globals.css` |
+| Notebook (الكناش, main tab): ruled-paper page, write a line at once (📝 ملاحظة / 🙋 طلب زبون, optional customer: name fills from the phone via `ownerForPhone`, on-device data), pages per day, ✓ tick (who / when), search + filters, edit; every account writes and ticks, only the owner deletes. Paper colours `--paper`, `--paper-line`, `--paper-margin`. As notifications: what other accounts wrote / ticked / changed since this account last opened it (`noteEvents`, `notes-seen`) → blue unread count on the tab, popup elsewhere in the app, «🔔 جديد من آخر مرة» box + highlighted lines, phone notification when the app is in the background once allowed (service worker `showNotification`; tap → `notificationclick` opens الكناش via `open-view` message or `/?view=notes`) | `components/NotesView.tsx`, `components/useNoteAlerts.ts`, `public/sw.js`, `lib/notes.ts` (pure, tested), `Note` in `lib/ledger.ts`, `.notebook*` / `.note-*` in `globals.css` |
 | Reports screen | `components/ReportsView.tsx` |
 | Shop barcodes (EAN-13 starting with 2, new number) | `lib/barcode.ts` |
 | Sticker printing window (sizes, list, 🔄 / ⬇️, print pages) | `components/LabelPrint.tsx` |
