@@ -110,6 +110,11 @@ const LABELS: Record<string, string> = {
   advance: "التسبيق",
   status: "الحالة",
   photo: "الصورة",
+  customer: "الزبون",
+  saleDate: "تاريخ البيع",
+  company: "الشركة",
+  servicePhone: "واتساب الشركة",
+  reminders: "التذكيرات",
 };
 const MONEY = new Set(["buyPrice", "sellPrice", "price", "amount", "installment", "advance"]);
 
@@ -126,6 +131,7 @@ const EDITS = new Set<LedgerOp["type"]>([
   "client.update", "client.delete", "client.installment",
   "purchase.update", "purchase.delete", "payment.update", "payment.delete",
   "repair.update", "repair.delete",
+  "claim.update", "claim.delete",
 ]);
 
 /** The record an edit was for, in the ledger as it is now. */
@@ -150,6 +156,9 @@ function target(op: LedgerOp, ledger: Ledger): Record<string, unknown> | undefin
     case "repair.update":
     case "repair.delete":
       return find(ledger.repairs, op.id);
+    case "claim.update":
+    case "claim.delete":
+      return find(ledger.claims, op.id);
     default:
       return undefined;
   }
@@ -175,7 +184,7 @@ export function conflictDetails(op: LedgerOp, ledger: Ledger, seeCost: boolean):
     changes.push({ label: "الكمية", mine: `${op.move.delta > 0 ? "+" : ""}${op.move.delta}`, now: show("quantity", rec.quantity) });
   }
   // On a repair, `device` is the repaired device: where the change came from is `origin`.
-  const from = op.type.startsWith("repair.") ? rec.origin : rec.device;
+  const from = op.type.startsWith("repair.") || op.type.startsWith("claim.") ? rec.origin : rec.device;
   return { who: typeof rec.by === "string" ? rec.by : "", device: typeof from === "string" ? from : "", when, changes, gone: false };
 }
 

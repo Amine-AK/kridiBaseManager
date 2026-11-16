@@ -13,6 +13,9 @@ import {
   type Payment,
   type PaymentKind,
   type Setting,
+  type Claim,
+  type ClaimStatus,
+  CLAIM_STATUSES,
   type Repair,
   type RepairStatus,
   REPAIR_STATUSES,
@@ -35,10 +38,11 @@ export const TABS = {
   closings: "الصندوق اليومي",
   settings: "الإعدادات",
   repairs: "الإصلاح",
+  claims: "خدمة الشركة",
 } as const;
 
 /** Tabs added with the shop features: created on their own in sheets set up before them. */
-export const SHOP_KEYS = ["stock", "categories", "sales", "moves", "closings", "settings", "repairs"] as const;
+export const SHOP_KEYS = ["stock", "categories", "sales", "moves", "closings", "settings", "repairs", "claims"] as const;
 
 export const DEFAULT_CATEGORIES: Category[] = [
   { name: "كهرومنزلي كبير", description: "ثلاجات، غسالات، كليماتيزورات، فرنات…", marginTarget: 15, icon: "🧊" },
@@ -73,6 +77,11 @@ export const HEADERS: Record<TableKey, string[]> = {
     "رقم الإصلاح", "الباركود", "التاريخ", "الساعة", "مول الجهاز", "الهاتف", "الجهاز", "المشكل",
     "ثمن الإصلاح", "التسبيق", "الباقي", "الحالة", "ملاحظات", "تاريخ الإضافة", "آخر تعديل",
     "آخر تعديل من", "جهاز التسجيل", "الصورة", "تاريخ التسليم", "ساعة التسليم", "خلص عند التسليم", "تكاليف المحل",
+  ],
+  claims: [
+    "رقم الطلب", "التاريخ", "الساعة", "الزبون", "هاتف الزبون", "السلعة", "تاريخ البيع", "الشركة", "واتساب الشركة", "العطب",
+    "الحالة", "آخر رسالة", "عدد التذكيرات", "تاريخ الحل", "ساعة الحل", "ملاحظات", "رقم الزبون", "رقم العملية", "رقم البيع",
+    "تاريخ الإضافة", "آخر تعديل", "آخر تعديل من", "جهاز التسجيل",
   ],
   sales: [
     "رقم البيع", "رقم التيكي", "التاريخ", "الساعة", "السلعة", "الفئة", "رقم السلعة فالمخزون", "الكمية",
@@ -199,6 +208,37 @@ export function rowToSetting(r: unknown[]): Setting | null {
   return key ? { key, value: s(r[1]), updatedAt: s(r[2]) } : null;
 }
 
+export function rowToClaim(r: unknown[]): Claim | null {
+  const id = s(r[0]);
+  if (!id) return null;
+  const status = s(r[10]) as ClaimStatus;
+  return {
+    id,
+    date: d(r[1]),
+    time: t(r[2]),
+    customer: s(r[3]),
+    phone: s(r[4]),
+    item: s(r[5]),
+    saleDate: d(r[6]),
+    company: s(r[7]),
+    servicePhone: s(r[8]),
+    problem: s(r[9]),
+    status: CLAIM_STATUSES.includes(status) ? status : "تصيفط",
+    lastSentAt: s(r[11]) || s(r[19]),
+    reminders: Math.max(0, Math.round(n(r[12]))),
+    resolvedDate: d(r[13]),
+    resolvedTime: s(r[14]) ? t(r[14]) : "",
+    notes: s(r[15]),
+    clientId: s(r[16]),
+    purchaseId: s(r[17]),
+    saleId: s(r[18]),
+    createdAt: s(r[19]),
+    updatedAt: s(r[20]),
+    by: s(r[21]),
+    origin: s(r[22]),
+  };
+}
+
 export function rowToRepair(r: unknown[]): Repair | null {
   const id = s(r[0]);
   if (!id) return null;
@@ -295,6 +335,7 @@ export function rowsToLedger(tables: Partial<Record<TableKey, unknown[][]>>): Le
     closings: rows("closings").map(rowToClosing).filter(keep),
     settings: rows("settings").map(rowToSetting).filter(keep),
     repairs: rows("repairs").map(rowToRepair).filter(keep),
+    claims: rows("claims").map(rowToClaim).filter(keep),
   };
 }
 
@@ -375,7 +416,17 @@ export function ledgerToRows(ledger: Ledger, today = todayISO()): Record<TableKe
       ],
     ]),
   );
-  return { clients, purchases, payments, changes, stock, categories, sales, moves, closings, settings, repairs };
+  const claims = new Map<string, Cell[]>(
+    ledger.claims.map((x) => [
+      x.id,
+      [
+        x.id, x.date, x.time, x.customer, x.phone, x.item, x.saleDate, x.company, x.servicePhone, x.problem,
+        x.status, x.lastSentAt, x.reminders, x.resolvedDate, x.resolvedTime, x.notes, x.clientId, x.purchaseId, x.saleId,
+        x.createdAt, x.updatedAt, x.by ?? "", x.origin ?? "",
+      ],
+    ]),
+  );
+  return { clients, purchases, payments, changes, stock, categories, sales, moves, closings, settings, repairs, claims };
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100;

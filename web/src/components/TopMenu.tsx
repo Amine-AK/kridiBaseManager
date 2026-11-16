@@ -17,6 +17,8 @@ interface Props {
   canBackup: boolean;
   /** Owner only: manage employee accounts. */
   onUsers?: () => void;
+  /** Accounts that follow the brands' after-sales requests: their services' numbers (خدمة العملاء). */
+  onContacts?: () => void;
   /** DEV ONLY: show «مسح جميع المعلومات». */
   devReset?: boolean;
   onDevReset?: () => void;
@@ -26,7 +28,7 @@ interface Props {
 }
 
 /** ⚙️ in the header: Excel backup, theme and logout. */
-export function TopMenu({ online, me, canBackup, onUsers, devReset, onDevReset, onSendBackup, onLogout, onToast }: Props) {
+export function TopMenu({ online, me, canBackup, onUsers, onContacts, devReset, onDevReset, onSendBackup, onLogout, onToast }: Props) {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>("system");
   const [downloading, setDownloading] = useState(false);
@@ -91,6 +93,23 @@ export function TopMenu({ online, me, canBackup, onUsers, devReset, onDevReset, 
                 }}
               >
                 👥 المستخدمين والصلاحيات
+              </button>
+              <hr />
+            </>
+          )}
+          {onContacts && (
+            <>
+              <p className="menu-label">الإعدادات</p>
+              <button
+                type="button"
+                role="menuitem"
+                className="menu-item"
+                onClick={() => {
+                  setOpen(false);
+                  onContacts();
+                }}
+              >
+                🏭 خدمة العملاء (الشركات)
               </button>
               <hr />
             </>

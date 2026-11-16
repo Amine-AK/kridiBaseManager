@@ -22,6 +22,7 @@ export const SELLER_SERVICES = [
   { key: "stock", label: "📦 تسيير المخزون (زيادة، تعديل، حذف)" },
   { key: "caisse", label: "🔒 الصندوق" },
   { key: "repairs", label: "🔧 الإصلاح (الأجهزة اللي جابو الزبناء)" },
+  { key: "claims", label: "🏭 خدمة الشركة (ريكلاماسيون السلع المباعة)" },
   { key: "reports", label: "📊 التقارير" },
   { key: "backup", label: "💾 تحميل نسخة Excel" },
 ] as const;

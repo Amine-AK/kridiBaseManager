@@ -20,6 +20,8 @@ import { SaleForm, type SaleDone } from "./SaleForm";
 import { SaleTicketDialog } from "./SaleTicket";
 import { StockView } from "./StockView";
 import { RepairsView } from "./RepairsView";
+import { ClaimsView, ServiceContactsDialog, useNow } from "./ClaimsView";
+import { lateClaims } from "@/lib/claims";
 import { ClientDetail } from "./ClientDetail";
 import { InstallButton } from "./InstallButton";
 import { NewClientForm } from "./ClientForms";
@@ -70,6 +72,7 @@ type Dialog =
   | { kind: "sale-ticket"; ticket: string }
   | { kind: "dev-reset" } // DEV ONLY
   | { kind: "users" }
+  | { kind: "contacts" }
   | null;
 
 type View = "credit" | "sell" | "stock" | "repairs" | "budget";
@@ -80,6 +83,13 @@ const BUDGET_TABS: { value: BudgetTab; label: string }[] = [
   { value: "reports", label: "📊 التقارير" },
 ];
 const BUDGET_KEY = "budget-tab";
+/** الإصلاح holds the devices repaired in the shop and the requests sent to the brands' services. */
+type RepairTab = "repairs" | "claims";
+const REPAIR_TABS: { value: RepairTab; label: string }[] = [
+  { value: "repairs", label: "🔧 الإصلاح" },
+  { value: "claims", label: "🏭 خدمة الشركة" },
+];
+const REPAIR_KEY = "repair-tab";
 
 const VIEWS: { value: View; icon: string; label: string }[] = [
   { value: "credit", icon: "📒", label: "الكريدي" },
@@ -99,7 +109,7 @@ function viewsFor(me: Me | null): typeof VIEWS {
       v.value === "credit" ||
       (v.value === "sell" && (can(me, "sell_cash") || can(me, "sell_credit"))) ||
       (v.value === "stock" && can(me, "stock")) ||
-      (v.value === "repairs" && can(me, "repairs")) ||
+      (v.value === "repairs" && (can(me, "repairs") || can(me, "claims"))) ||
       (v.value === "budget" && (can(me, "caisse") || can(me, "reports"))),
   );
 }
@@ -118,6 +128,8 @@ export function Dashboard() {
   const [hideDebt, toggleDebt] = useHiddenAmount("credit-total");
 
   const [budgetTab, setBudgetTabState] = useState<BudgetTab>("caisse");
+  const [repairTab, setRepairTabState] = useState<RepairTab>("repairs");
+  const now = useNow();
 
   useEffect(() => {
     try {
@@ -129,6 +141,8 @@ export function Dashboard() {
       } else if (saved && VIEWS.some((v) => v.value === saved)) setViewState(saved as View);
       const tab = sessionStorage.getItem(BUDGET_KEY);
       if (tab === "caisse" || tab === "reports") setBudgetTabState(tab);
+      const rtab = sessionStorage.getItem(REPAIR_KEY);
+      if (rtab === "repairs" || rtab === "claims") setRepairTabState(rtab);
     } catch {}
   }, []);
 
@@ -139,7 +153,16 @@ export function Dashboard() {
     } catch {}
   }
 
+  function setRepairTab(t: RepairTab) {
+    setRepairTabState(t);
+    try {
+      sessionStorage.setItem(REPAIR_KEY, t);
+    } catch {}
+  }
+
   const me = data.me;
+  // Requests to the brands' services still open 48 h after the last message (none for accounts without the service).
+  const lateCount = lateClaims(data.ledger?.claims ?? [], now).length;
   const allow = (p: Parameters<typeof can>[1]) => can(me, p);
   const views = viewsFor(me);
   // A section this user can't open (e.g. remembered from another account) falls back to the first allowed one.
@@ -273,6 +296,7 @@ export function Dashboard() {
             me={me}
             canBackup={allow("backup")}
             onUsers={allow("owner_only") ? () => setDialog({ kind: "users" }) : undefined}
+            onContacts={allow("claims") && data.ledger ? () => setDialog({ kind: "contacts" }) : undefined}
             onLogout={async () => {
               // Changes not sent yet belong to this user: they must reach the sheet before someone else logs in.
               if (data.pendingCount > 0) {
@@ -293,7 +317,10 @@ export function Dashboard() {
         {views.map((v) => (
           <button key={v.value} type="button" className={current === v.value ? "on" : ""} aria-current={current === v.value ? "page" : undefined} onClick={() => setView(v.value)}>
             <span aria-hidden="true">{v.icon}</span>
-            <span>{v.label}</span>
+            <span>
+              {v.label}
+              {v.value === "repairs" && lateCount > 0 && <bdi className="tab-count" title="طلبات خدمة الشركة لي فاتو 48 ساعة">{lateCount}</bdi>}
+            </span>
           </button>
         ))}
       </nav>
@@ -310,7 +337,26 @@ export function Dashboard() {
           </section>
         )}
         {current === "stock" && data.ledger && <StockView data={data} onToast={setToast} />}
-        {current === "repairs" && data.ledger && <RepairsView data={data} onToast={setToast} />}
+        {current === "repairs" && data.ledger && (() => {
+          // Only the parts of الإصلاح this account may open.
+          const tabs = REPAIR_TABS.filter((b) => allow(b.value));
+          const tab = tabs.some((b) => b.value === repairTab) ? repairTab : tabs[0].value;
+          return (
+            <>
+              {tabs.length > 1 && (
+                <div className="segmented wide-seg budget-tabs" role="tablist" aria-label="الإصلاح">
+                  {tabs.map((b) => (
+                    <button key={b.value} type="button" role="tab" aria-selected={tab === b.value} className={tab === b.value ? "on" : ""} onClick={() => setRepairTab(b.value)}>
+                      {b.label}
+                      {b.value === "claims" && lateCount > 0 && <bdi className="tab-count">{lateCount}</bdi>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {tab === "repairs" ? <RepairsView data={data} onToast={setToast} /> : <ClaimsView data={data} onToast={setToast} />}
+            </>
+          );
+        })()}
         {current === "budget" && data.ledger && (() => {
           // Only the parts of الميزانية this account may open.
           const tabs = BUDGET_TABS.filter((b) => allow(b.value));
@@ -549,6 +595,7 @@ export function Dashboard() {
       {dialog?.kind === "sale-ticket" && data.ledger && (
         <SaleTicketDialog lines={data.ledger.sales.filter((x) => x.ticket === dialog.ticket)} notice="تسجل البيع ✓" onClose={() => setDialog(null)} />
       )}
+      {dialog?.kind === "contacts" && data.ledger && <ServiceContactsDialog data={data} onClose={() => setDialog(null)} onToast={setToast} />}
       {dialog?.kind === "users" && <UsersDialog onClose={() => setDialog(null)} onToast={setToast} />}
       {/* DEV ONLY */}
       {dialog?.kind === "dev-reset" && <DevResetDialog data={data} onClose={() => setDialog(null)} onToast={setToast} />}
