@@ -7,6 +7,7 @@
 // it in the Google Sheet), so both always agree. Operations are safe to send
 // twice: a second copy is recognised and skipped.
 
+import { approvalChain, refusalCascade } from "./approval-deps";
 import { addDays, addMonths, addPeriods, dueStatus, isISODate, isManualPeriod, nextDateForPeriod, type DueStatus } from "./sheet-logic";
 
 export interface Client {
@@ -264,6 +265,38 @@ export interface Claim {
   origin?: string;
 }
 
+/** Where a seller's credit change is (طلبات الموافقة). */
+export const APPROVAL_STATUSES = ["كتسنى", "تقبل", "ترفض"] as const;
+export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
+
+/**
+ * A credit change made by a seller (new customer, credit sale, payment,
+ * instalment, edit, deletion): kept aside until the owner accepts it. Only
+ * then is `op` applied to the customers' tabs; refused ones stay, with why.
+ */
+export interface Approval {
+  /** "A-" + the change's own id (the same change sent twice is the same request). */
+  id: string;
+  /** The change as the seller made it (with who, from which device, when). */
+  op: LedgerOp;
+  status: ApprovalStatus;
+  /** Why it was refused. */
+  reason: string;
+  decidedBy: string;
+  decidedAt: string;
+  /** = op.at */
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Changes a seller makes that need the owner's approval: everything about credit. */
+export const CREDIT_OPS = new Set<string>([
+  "client.add", "client.update", "client.delete", "client.installment",
+  "purchase.add", "purchase.update", "purchase.delete",
+  "payment.add", "payment.update", "payment.delete",
+  "sale.add", "sale.delete",
+]);
+
 /** A shop-wide setting shared by every device (e.g. the default sticker look), as JSON text. */
 export interface Setting {
   key: string;
@@ -289,10 +322,11 @@ export interface Ledger {
   settings: Setting[];
   repairs: Repair[];
   claims: Claim[];
+  approvals: Approval[];
 }
 
 export function emptyLedger(): Ledger {
-  return { clients: [], purchases: [], payments: [], changes: [], stock: [], categories: [], sales: [], moves: [], closings: [], settings: [], repairs: [], claims: [] };
+  return { clients: [], purchases: [], payments: [], changes: [], stock: [], categories: [], sales: [], moves: [], closings: [], settings: [], repairs: [], claims: [], approvals: [] };
 }
 
 export const EMPTY_LEDGER: Ledger = emptyLedger();
@@ -321,7 +355,7 @@ const ID_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I: easy to rea
  * "C-7K2QXM9A": prefix C (client), S (purchase), P (payment), T (instalment change), O (operation),
  * I (stock item), V (sale), M (stock move), K (cash drawer closing).
  */
-export type IdPrefix = "C" | "S" | "P" | "T" | "O" | "I" | "V" | "M" | "K" | "R" | "W";
+export type IdPrefix = "C" | "S" | "P" | "T" | "O" | "I" | "V" | "M" | "K" | "R" | "W" | "A";
 export function newLedgerId(prefix: IdPrefix): string {
   const bytes = new Uint8Array(8);
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) crypto.getRandomValues(bytes);
@@ -329,7 +363,7 @@ export function newLedgerId(prefix: IdPrefix): string {
   return `${prefix}-${Array.from(bytes, (b) => ID_CHARS[b % ID_CHARS.length]).join("")}`;
 }
 
-const ID_RE = /^[CSPTOIVMKRW]-[A-Z0-9]{4,16}$/;
+const ID_RE = /^[CSPTOIVMKRWA]-[A-Z0-9]{4,16}$/;
 export const isLedgerId = (s: unknown): s is string => typeof s === "string" && ID_RE.test(s);
 
 // ---------------------------------------------------------------- operations
@@ -367,6 +401,10 @@ type OpBody =
   | { type: "claim.add"; claim: Claim }
   | { type: "claim.update"; id: string; base: string; patch: Partial<Omit<Claim, "id" | "createdAt" | "updatedAt" | "by" | "origin">> }
   | { type: "claim.delete"; id: string }
+  /** A seller's credit change, kept aside for the owner (see Approval). */
+  | { type: "approval.add"; id: string; op: LedgerOp }
+  /** The owner accepts (the change and what it needs are applied) or refuses (with what was built on it). */
+  | { type: "approval.decide"; id: string; decision: "accept" | "refuse"; reason: string }
   /** A shop-wide setting (key → JSON text), e.g. the default sticker look. */
   | { type: "setting.save"; key: string; value: string }
   /** Lines sold together; a credit sale also brings the purchases for the customer's account. */
@@ -781,6 +819,45 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
     case "claim.delete": {
       if (!ledger.claims.some((x) => x.id === op.id)) return { ledger, result: "already" };
       return { ledger: { ...ledger, claims: ledger.claims.filter((x) => x.id !== op.id) }, result: "ok" };
+    }
+    case "approval.add": {
+      const inner = op.op;
+      if (!inner || typeof inner !== "object" || !CREDIT_OPS.has(inner.type) || typeof inner.opId !== "string" || typeof inner.at !== "string" || Number.isNaN(Date.parse(inner.at))) {
+        return invalid(ledger, "الطلب غير صحيح");
+      }
+      if (!isLedgerId(op.id) || !op.id.startsWith("A-") || JSON.stringify(inner).length > 40_000) return invalid(ledger, "الطلب غير صحيح");
+      if (ledger.approvals.some((a) => a.id === op.id)) return { ledger, result: "already" };
+      const a: Approval = { id: op.id, op: { ...inner, by: op.by ?? inner.by ?? "", device: op.device ?? inner.device ?? "" }, status: "كتسنى", reason: "", decidedBy: "", decidedAt: "", createdAt: inner.at, updatedAt: op.at };
+      return { ledger: { ...ledger, approvals: [...ledger.approvals, a] }, result: "ok" };
+    }
+    case "approval.decide": {
+      const a = ledger.approvals.find((x) => x.id === op.id);
+      if (!a) return invalid(ledger, "هاد الطلب ما بقاش");
+      if (a.status !== "كتسنى") return a.decidedAt === op.at ? { ledger, result: "already" } : invalid(ledger, "هاد الطلب تقرر ديجا");
+      if (!text(op.reason ?? "", 300)) return invalid(ledger, "السبب طويل بزاف");
+      const waiting = ledger.approvals.filter((x) => x.status === "كتسنى");
+      const done = (ids: Set<string>, status: ApprovalStatus) => (l: Ledger): Ledger => ({
+        ...l,
+        approvals: l.approvals.map((x) =>
+          ids.has(x.id) ? { ...x, status, reason: status === "ترفض" ? (op.reason ?? "").trim() : "", decidedBy: op.by ?? "", decidedAt: op.at, updatedAt: op.at } : x,
+        ),
+      });
+      if (op.decision === "refuse") {
+        const ids = new Set(refusalCascade(waiting, a).map((x) => x.id));
+        return { ledger: done(ids, "ترفض")(ledger), result: "ok" };
+      }
+      if (op.decision !== "accept") return invalid(ledger, "القرار غير صحيح");
+      // What this change needs (a new customer, the sale a payment is for…) is accepted with it.
+      const chain = approvalChain(waiting, a);
+      let l = ledger;
+      for (const x of chain) {
+        const r = applyOp(l, x.op);
+        if (r.result === "invalid" || r.result === "conflict") {
+          return invalid(ledger, `ما يمكنش يتقبل: ${r.message ?? CONFLICT}`);
+        }
+        l = r.ledger;
+      }
+      return { ledger: done(new Set(chain.map((x) => x.id)), "تقبل")(l), result: "ok" };
     }
     case "setting.save": {
       if (typeof op.key !== "string" || !/^[a-z0-9-]{1,40}$/.test(op.key) || typeof op.value !== "string" || op.value.length > 20_000) {

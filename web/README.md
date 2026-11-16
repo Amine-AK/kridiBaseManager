@@ -433,6 +433,24 @@ the device was brought («🔧 تسبيقات الإصلاح»). Saved in the sh
 window: without it a seller doesn't see the tab, and the server doesn't send
 repairs (customers' phones) to their device.
 
+### ⏳ Sellers' credit changes wait for the owner (طلبات الموافقة)
+
+Whatever a **seller** account changes about credit (new customer, credit sale,
+payment / instalment, change of الطريطة, edits and deletions) is not written to
+the customers' tabs. It is kept in the tab «طلبات الموافقة» until the owner decides.
+
+- Meanwhile the app counts it, marked ⏳: the customer's receipt and WhatsApp
+  message already show the lower amount left, and the cash drawer counts the
+  money the seller took. The sheet itself does not change.
+- **Owner**: in الكريدي the bar «⏳ N زبون عندهم … تعديل كيتسنى الموافقة ديالك»
+  opens the list, grouped by customer: «✓ قبول», «✕ رفض» (with a reason), «✓ قبل الكل».
+  Accepting a payment of a new customer also accepts the customer and the sale it
+  needs; refusing the customer also refuses what was built on it. A customer's page
+  shows the same banner; the owner can't edit a record a seller changed until deciding.
+- **Seller**: sees what still waits, and the changes refused in the last 7 days with the reason.
+- A refused payment no longer counts in the cash drawer: if the drawer was already
+  closed that day, it shows as a difference.
+
 ### 🏭 خدمة الشركة (after-sales requests to the brands)
 
 A product the shop sold (a fridge…) has a fault that the brand's own service

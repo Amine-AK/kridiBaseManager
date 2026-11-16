@@ -1,6 +1,6 @@
 // Rules about who may do what, as pure functions (used by the server routes, and tested).
 
-import { SERVICE_CONTACTS_KEY, type Ledger, type LedgerOp } from "./ledger";
+import { CREDIT_OPS, SERVICE_CONTACTS_KEY, type Ledger, type LedgerOp } from "./ledger";
 import { can, seesCost, type Me, type Permission } from "./roles";
 
 /** May this user make this change (sent from a phone)? */
@@ -53,6 +53,12 @@ export function opAllowed(me: Me, op: LedgerOp): boolean {
     case "claim.update":
     case "claim.delete":
       return any("claims");
+    // A seller's credit change kept for the owner: allowed when the change itself is.
+    case "approval.add":
+      return Boolean(op.op && typeof op.op === "object" && CREDIT_OPS.has(op.op.type)) && opAllowed(me, op.op);
+    // Only the owner accepts or refuses.
+    case "approval.decide":
+      return any("owner_only");
     default:
       return false;
   }
@@ -78,6 +84,9 @@ export function stampOp(me: Me, op: LedgerOp, ledger: Ledger): LedgerOp {
       return op.move ? { ...op, move: { ...op.move, seller: me.name } } : op;
     case "caisse.close":
       return op.close ? { ...op, close: { ...op.close, clerk: me.name } } : op;
+    case "approval.add":
+      // The change inside is stamped like any other (who sold, the cost of a credit sale).
+      return op.op && typeof op.op === "object" ? { ...op, op: { ...stampOp(me, op.op, ledger), by: me.name, device: op.device } } : op;
     case "stock.update": {
       if (seesCost(me) || !op.patch) return op;
       // Can't see the cost, so can't change it (the form had none to show).
@@ -102,6 +111,11 @@ export function ledgerFor(me: Me, ledger: Ledger): Ledger {
   if (!can(me, "claims")) ledger = { ...ledger, claims: [] };
   const cost = seesCost(me);
   const stock = cost ? ledger.stock : ledger.stock.map((s) => ({ ...s, buyPrice: 0 }));
-  if (me.role === "stock") return { ...ledger, clients: [], purchases: [], payments: [], changes: [], sales: [], closings: [], stock };
-  return { ...ledger, stock, sales: cost ? ledger.sales : ledger.sales.map((s) => ({ ...s, buyPrice: null })) };
+  if (me.role === "stock") return { ...ledger, clients: [], purchases: [], payments: [], changes: [], sales: [], closings: [], approvals: [], stock };
+  if (cost) return { ...ledger, stock };
+  // Credit sales waiting for the owner carry their cost too.
+  const approvals = ledger.approvals.map((a) =>
+    a.op.type === "sale.add" ? { ...a, op: { ...a.op, lines: (a.op.lines ?? []).map((l) => ({ ...l, buyPrice: null })) } } : a,
+  );
+  return { ...ledger, stock, approvals, sales: ledger.sales.map((s) => ({ ...s, buyPrice: null })) };
 }

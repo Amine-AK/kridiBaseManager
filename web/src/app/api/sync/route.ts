@@ -1,6 +1,7 @@
 import { handleError, jsonError, readJson } from "@/lib/api";
 import type { LedgerOp } from "@/lib/ledger";
 import { opAllowed, requireUser, stampOp } from "@/lib/access";
+import { asRequest, needsApproval } from "@/lib/approvals";
 import { cleanDevice } from "@/lib/change-origin";
 import { sync } from "@/lib/store";
 
@@ -23,9 +24,13 @@ export async function POST(request: Request) {
   try {
     // Each change is checked against what this user may do, and stamped with who did it
     // (the account from the session, never from the device) and the device it came from.
-    const results = await sync(ops, (op, ledger) =>
-      opAllowed(me, op) ? { ...stampOp(me, op, ledger), by: me.name, device: cleanDevice(op.device) } : "ما عندكش الصلاحية لهاد الشي",
-    );
+    // A seller's credit change is kept for the owner instead (the app does that itself;
+    // this covers older versions of it).
+    const results = await sync(ops, (op, ledger) => {
+      if (!opAllowed(me, op)) return "ما عندكش الصلاحية لهاد الشي";
+      const stamped = { ...stampOp(me, op, ledger), by: me.name, device: cleanDevice(op.device) } as LedgerOp;
+      return needsApproval(me, stamped, ledger) ? asRequest(stamped) : stamped;
+    });
     return Response.json({ results });
   } catch (e) {
     return handleError(e);

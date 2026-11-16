@@ -15,6 +15,9 @@ import { can } from "@/lib/roles";
 import { Confirm } from "./ui";
 import { ClaimForm, useNow } from "./ClaimsView";
 import { isLate, openClaimFor } from "@/lib/claims";
+import { waitingByClient } from "@/lib/approvals";
+import { ApprovalsDialog, recentRefusals } from "./ApprovalsView";
+import { describe as describeRequest } from "@/lib/approvals";
 
 type Sub =
   | { kind: "info" }
@@ -28,6 +31,7 @@ type Sub =
   | { kind: "delete-client" }
   | { kind: "archive" }
   | { kind: "claim" }
+  | { kind: "approvals" }
   | null;
 
 export function ClientDetail({ data, clientId, onClose, onToast }: { data: LedgerState; clientId: string; onClose: () => void; onToast: (t: string) => void }) {
@@ -44,6 +48,14 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
     );
   }
   const c = s.client;
+  // Sellers' changes on this customer still waiting for the owner (shown ⏳, not in the sheet yet).
+  const owner = data.me?.role === "owner";
+  const waiting = data.ledger ? (waitingByClient(data.ledger).get(c.id) ?? []) : [];
+  const refused = data.ledger ? recentRefusals(data.ledger.approvals).filter((a) => describeRequest(a.op, data.ledger!).clientId === c.id) : [];
+  const newWaiting = waiting.some((a) => a.op.type === "client.add");
+  // The owner decides first: an edit of a record a seller changed would be refused by the sheet.
+  const editable = (id: string) => !(owner && data.pendingIds.has(id));
+  const ownerLocked = owner && (newWaiting || data.pendingIds.has(c.id));
   const months = monthsToFinish(s.remaining, c.installment, c.period);
   const payments = sortPayments(s.payments).reverse();
   const savedNote = data.online ? "" : " · محفوظ فالتيليفون";
@@ -80,13 +92,35 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
             </>
           )}
           {(c.phones ?? []).length > 0 && <MorePhones name={c.name} phones={c.phones!} />}
-          {allow("client_delete") && (
+          {allow("client_delete") && !ownerLocked && (
           <button type="button" className="delete-mini" onClick={() => setSub({ kind: "delete-client" })} disabled={busy} aria-label={`حذف ${c.name}`} title="حذف الزبون">
             🗑️ حذف
           </button>
           )}
         </div>
         {c.notes && <p className="muted">{c.notes}</p>}
+        {waiting.length > 0 && (
+          <div className="alert warn pending-note">
+            <p>
+              ⏳ <strong>{waiting.length}</strong> تعديل ديال البائع كيتسنى {owner ? "الموافقة ديالك" : "موافقة المالك"}
+              {newWaiting && " (زبون جديد)"}. ما تسجلو فالـ Google Sheet باقي؛ الأرقام هنا محسوبين بيهم.
+              {ownerLocked && " وافق ولا رفض قبل ما تبدل فهاد الزبون."}
+            </p>
+            <button type="button" className="btn small-btn" onClick={() => setSub({ kind: "approvals" })}>
+              {owner ? "شوف ووافق" : "شوف"}
+            </button>
+          </div>
+        )}
+        {refused.length > 0 && !owner && (
+          <div className="alert error pending-note">
+            {refused.map((a) => (
+              <p key={a.id}>
+                ❌ ترفض: {describeRequest(a.op, data.ledger!).text}
+                {a.reason && ` · السبب: ${a.reason}`}
+              </p>
+            ))}
+          </div>
+        )}
 
         <dl className="facts three">
           <div>
@@ -114,7 +148,7 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
                 الدفعة المقبلة: {c.nextDueDate ? `${displayDate(c.nextDueDate)} · ${dueText(c.nextDueDate, s.status, data.today)}` : "—"}
               </p>
             </div>
-            {allow("client_edit") && (
+            {allow("client_edit") && !ownerLocked && (
             <button type="button" className="btn small-btn" onClick={() => setSub({ kind: "installment" })}>
               بدل الطريطة
             </button>
@@ -124,19 +158,19 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
 
         <div className="detail-actions">
           {allow("payment") && (
-          <button type="button" className="btn primary" onClick={() => setSub({ kind: "payment" })} disabled={!s.purchases.length}>
+          <button type="button" className="btn primary" onClick={() => setSub({ kind: "payment" })} disabled={!s.purchases.length || (owner && newWaiting)}>
             دفعة
           </button>
           )}
           {allow("sell_credit") && (
-          <button type="button" className="btn" onClick={() => setSub({ kind: "sale" })}>
+          <button type="button" className="btn" onClick={() => setSub({ kind: "sale" })} disabled={owner && newWaiting}>
             شراء جديد
           </button>
           )}
           <button type="button" className="btn" onClick={() => setSub({ kind: "receipt", mode: "statement" })}>
             كشف الحساب
           </button>
-          {allow("client_edit") && (
+          {allow("client_edit") && !ownerLocked && (
           <button type="button" className="btn" onClick={() => setSub({ kind: "info" })}>
             تعديل المعلومات
           </button>
@@ -159,6 +193,7 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
                   <span className="muted small">
                     {displayDate(it.purchase.date)} · {money(it.purchase.price)}
                   </span>
+                  {data.pendingIds.has(it.purchase.id) && <span className="pending-flag">⏳ كتسنى موافقة المالك</span>}
                   {(() => {
                     // A request is open at the brand's service for this product.
                     const claim = openClaimFor(data.ledger?.claims ?? [], it.purchase.id);
@@ -169,12 +204,12 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
                 </div>
                 <span className={`row-amount ${it.remaining > 0 ? "" : "ok-text"}`}>{it.remaining > 0 ? `باقي ${money(it.remaining)}` : "خالصة ✓"}</span>
                 <div className="row-actions">
-                  {allow("client_edit") && (
+                  {allow("client_edit") && editable(it.purchase.id) && (
                   <button type="button" className="link-btn" onClick={() => setSub({ kind: "purchase", purchase: it.purchase })}>
                     تعديل
                   </button>
                   )}
-                  {allow("client_edit") && (
+                  {allow("client_edit") && editable(it.purchase.id) && (
                   <button type="button" className="link-btn danger-text" onClick={() => setSub({ kind: "delete-purchase", purchase: it.purchase })}>
                     حذف
                   </button>
@@ -198,17 +233,18 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
                     {p.kind === "تسبيق" ? " · تسبيق" : ""}
                     {p.purchaseId ? ` · ${s.purchases.find((x) => x.id === p.purchaseId)?.item ?? ""}` : ""}
                   </span>
+                  {data.pendingIds.has(p.id) && <span className="pending-flag">⏳ كتسنى موافقة المالك</span>}
                 </div>
                 <div className="row-actions">
                   <button type="button" className="link-btn" onClick={() => setSub({ kind: "receipt", mode: "payment", paymentId: p.id })}>
                     وصل
                   </button>
-                  {allow("client_edit") && (
+                  {allow("client_edit") && editable(p.id) && (
                   <button type="button" className="link-btn" onClick={() => setSub({ kind: "payment", payment: p })}>
                     تعديل / نقل
                   </button>
                   )}
-                  {allow("client_edit") && (
+                  {allow("client_edit") && editable(p.id) && (
                   <button type="button" className="link-btn danger-text" onClick={() => setSub({ kind: "delete-payment", payment: p })}>
                     حذف
                   </button>
@@ -334,6 +370,7 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
           }}
         />
       )}
+      {sub?.kind === "approvals" && <ApprovalsDialog data={data} clientId={c.id} onClose={() => setSub(null)} onToast={onToast} />}
       {sub?.kind === "claim" && (
         <ClaimForm
           data={data}

@@ -13,6 +13,10 @@ import {
   type Payment,
   type PaymentKind,
   type Setting,
+  type Approval,
+  type ApprovalStatus,
+  APPROVAL_STATUSES,
+  nowParts,
   type Claim,
   type ClaimStatus,
   CLAIM_STATUSES,
@@ -23,7 +27,9 @@ import {
   type Sale,
   type StockItem,
   type StockMove,
+  type LedgerOp,
 } from "./ledger";
+import { describe } from "./approvals";
 import { COL, extractNumbers, parseSheetDate, parseSum, stripStamps, todayISO } from "./sheet-logic";
 
 export const TABS = {
@@ -39,10 +45,11 @@ export const TABS = {
   settings: "الإعدادات",
   repairs: "الإصلاح",
   claims: "خدمة الشركة",
+  approvals: "طلبات الموافقة",
 } as const;
 
 /** Tabs added with the shop features: created on their own in sheets set up before them. */
-export const SHOP_KEYS = ["stock", "categories", "sales", "moves", "closings", "settings", "repairs", "claims"] as const;
+export const SHOP_KEYS = ["stock", "categories", "sales", "moves", "closings", "settings", "repairs", "claims", "approvals"] as const;
 
 export const DEFAULT_CATEGORIES: Category[] = [
   { name: "كهرومنزلي كبير", description: "ثلاجات، غسالات، كليماتيزورات، فرنات…", marginTarget: 15, icon: "🧊" },
@@ -77,6 +84,10 @@ export const HEADERS: Record<TableKey, string[]> = {
     "رقم الإصلاح", "الباركود", "التاريخ", "الساعة", "مول الجهاز", "الهاتف", "الجهاز", "المشكل",
     "ثمن الإصلاح", "التسبيق", "الباقي", "الحالة", "ملاحظات", "تاريخ الإضافة", "آخر تعديل",
     "آخر تعديل من", "جهاز التسجيل", "الصورة", "تاريخ التسليم", "ساعة التسليم", "خلص عند التسليم", "تكاليف المحل",
+  ],
+  approvals: [
+    "رقم الطلب", "التاريخ", "الساعة", "البائع", "الجهاز", "رقم الزبون", "الزبون", "التعديل", "المبلغ",
+    "الحالة", "سبب الرفض", "قرر", "وقت القرار", "التعديل (JSON)", "تاريخ الإضافة", "آخر تعديل",
   ],
   claims: [
     "رقم الطلب", "التاريخ", "الساعة", "الزبون", "هاتف الزبون", "السلعة", "تاريخ البيع", "الشركة", "واتساب الشركة", "العطب",
@@ -208,6 +219,29 @@ export function rowToSetting(r: unknown[]): Setting | null {
   return key ? { key, value: s(r[1]), updatedAt: s(r[2]) } : null;
 }
 
+export function rowToApproval(r: unknown[]): Approval | null {
+  const id = s(r[0]);
+  if (!id) return null;
+  let op: LedgerOp;
+  try {
+    op = JSON.parse(s(r[13]));
+  } catch {
+    return null;
+  }
+  if (!op || typeof op !== "object" || typeof op.type !== "string") return null;
+  const status = s(r[9]) as ApprovalStatus;
+  return {
+    id,
+    op,
+    status: APPROVAL_STATUSES.includes(status) ? status : "كتسنى",
+    reason: s(r[10]),
+    decidedBy: s(r[11]),
+    decidedAt: s(r[12]),
+    createdAt: s(r[14]),
+    updatedAt: s(r[15]),
+  };
+}
+
 export function rowToClaim(r: unknown[]): Claim | null {
   const id = s(r[0]);
   if (!id) return null;
@@ -336,6 +370,7 @@ export function rowsToLedger(tables: Partial<Record<TableKey, unknown[][]>>): Le
     settings: rows("settings").map(rowToSetting).filter(keep),
     repairs: rows("repairs").map(rowToRepair).filter(keep),
     claims: rows("claims").map(rowToClaim).filter(keep),
+    approvals: rows("approvals").map(rowToApproval).filter(keep),
   };
 }
 
@@ -426,7 +461,20 @@ export function ledgerToRows(ledger: Ledger, today = todayISO()): Record<TableKe
       ],
     ]),
   );
-  return { clients, purchases, payments, changes, stock, categories, sales, moves, closings, settings, repairs, claims };
+  const approvals = new Map<string, Cell[]>(
+    ledger.approvals.map((x) => {
+      const info = describe(x.op, ledger);
+      const when = Number.isNaN(Date.parse(x.createdAt)) ? { date: "", time: "" } : nowParts(new Date(x.createdAt));
+      return [
+        x.id,
+        [
+          x.id, when.date, when.time, x.op.by ?? "", x.op.device ?? "", info.clientId, info.client, `${info.icon} ${info.text}`, info.amount,
+          x.status, x.reason, x.decidedBy, x.decidedAt, JSON.stringify(x.op), x.createdAt, x.updatedAt,
+        ],
+      ];
+    }),
+  );
+  return { clients, purchases, payments, changes, stock, categories, sales, moves, closings, settings, repairs, claims, approvals };
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100;

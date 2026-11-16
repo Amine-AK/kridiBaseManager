@@ -1144,3 +1144,28 @@ a.btn { text-decoration: none; }
 .claim-flag { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); white-space: nowrap; }
 .claim-flag.late { background: var(--danger-soft); color: var(--danger); }
 .row-main .claim-flag { justify-self: start; }
+
+/* طلبات الموافقة (ApprovalsView.tsx): sellers' credit changes waiting for the owner. */
+.approvals-bar {
+  width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 10px 0 0; padding: 12px 14px;
+  border: 1px solid var(--warn); border-radius: 12px; background: var(--warn-soft); color: var(--warn); font: inherit; text-align: start; cursor: pointer;
+}
+.approvals-bar.attention { border-width: 2px; }
+.approvals-go { flex: none; font-weight: 700; }
+.approval-group { margin-top: 14px; }
+.approval-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.approval-head h3 { margin: 0; font-size: 16px; }
+.approval-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.approval-item {
+  display: grid; gap: 6px; padding: 10px 12px;
+  border: 1px solid var(--line); border-inline-start: 4px solid var(--warn); border-radius: 10px; background: var(--surface);
+}
+.approval-item.status-ok { border-inline-start-color: var(--accent); }
+.approval-item.status-no { border-inline-start-color: var(--danger); }
+.approval-main { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.approval-actions { display: flex; gap: 8px; }
+.approval-actions .btn { flex: 1; }
+.pending-flag { justify-self: start; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); white-space: nowrap; }
+.pending-note { margin: 10px 0; }
+.client-row .pending-dot, .card .pending-dot { margin-inline-start: 6px; font-size: 13px; }
+.pending-note p { margin: 0; }

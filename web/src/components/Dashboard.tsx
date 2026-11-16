@@ -22,6 +22,8 @@ import { StockView } from "./StockView";
 import { RepairsView } from "./RepairsView";
 import { ClaimsView, ServiceContactsDialog, useNow } from "./ClaimsView";
 import { lateClaims } from "@/lib/claims";
+import { ApprovalsBar, ApprovalsDialog } from "./ApprovalsView";
+import { waitingByClient } from "@/lib/approvals";
 import { ClientDetail } from "./ClientDetail";
 import { InstallButton } from "./InstallButton";
 import { NewClientForm } from "./ClientForms";
@@ -73,6 +75,7 @@ type Dialog =
   | { kind: "dev-reset" } // DEV ONLY
   | { kind: "users" }
   | { kind: "contacts" }
+  | { kind: "approvals" }
   | null;
 
 type View = "credit" | "sell" | "stock" | "repairs" | "budget";
@@ -161,6 +164,8 @@ export function Dashboard() {
   }
 
   const me = data.me;
+  // Sellers' credit changes still waiting for the owner, per customer (⏳ on the list).
+  const waiting = useMemo(() => (data.ledger ? waitingByClient(data.ledger) : new Map<string, unknown[]>()), [data.ledger]);
   // Requests to the brands' services still open 48 h after the last message (none for accounts without the service).
   const lateCount = lateClaims(data.ledger?.claims ?? [], now).length;
   const allow = (p: Parameters<typeof can>[1]) => can(me, p);
@@ -402,6 +407,8 @@ export function Dashboard() {
           </div>
         </section>
 
+        <ApprovalsBar data={data} onOpen={() => setDialog({ kind: "approvals" })} />
+
         {/* On a phone this row sits fixed at the bottom of the screen, under the thumb. */}
         <div className="actions-row">
           {allow("client_add") && (
@@ -554,6 +561,7 @@ export function Dashboard() {
                           key={s.client.id}
                           s={s}
                           today={today}
+                          waiting={waiting.get(s.client.id)?.length ?? 0}
                           onOpen={() => setDialog({ kind: "client", id: s.client.id })}
                           onPay={allow("payment") ? () => setDialog({ kind: "pay", id: s.client.id }) : undefined}
                         />
@@ -595,6 +603,7 @@ export function Dashboard() {
       {dialog?.kind === "sale-ticket" && data.ledger && (
         <SaleTicketDialog lines={data.ledger.sales.filter((x) => x.ticket === dialog.ticket)} notice="تسجل البيع ✓" onClose={() => setDialog(null)} />
       )}
+      {dialog?.kind === "approvals" && data.ledger && <ApprovalsDialog data={data} onClose={() => setDialog(null)} onToast={setToast} />}
       {dialog?.kind === "contacts" && data.ledger && <ServiceContactsDialog data={data} onClose={() => setDialog(null)} onToast={setToast} />}
       {dialog?.kind === "users" && <UsersDialog onClose={() => setDialog(null)} onToast={setToast} />}
       {/* DEV ONLY */}
@@ -643,7 +652,7 @@ function useIsPhone(): boolean {
  * next payment is due and what is still being paid, the amount owed, and a
  * quick «payment» button. Tap the line for the account.
  */
-function ClientRow({ s, today, onOpen, onPay }: { s: ClientSummary; today: string; onOpen: () => void; onPay?: () => void }) {
+function ClientRow({ s, today, waiting, onOpen, onPay }: { s: ClientSummary; today: string; waiting: number; onOpen: () => void; onPay?: () => void }) {
   const c = s.client;
   const owes = s.remaining > 0;
   const unpaid = unpaidItems(s);
@@ -655,7 +664,10 @@ function ClientRow({ s, today, onOpen, onPay }: { s: ClientSummary; today: strin
           {initial(c.name)}
         </span>
         <span className="row-main">
-          <span className="row-name">{c.name}</span>
+          <span className="row-name">
+            {c.name}
+            {waiting > 0 && <span className="pending-dot" title={`${waiting} تعديل كيتسنى موافقة المالك`}>⏳</span>}
+          </span>
           <span className="row-sub">
             <span className="row-due">{due}</span>
             {unpaid.length > 0 && (
@@ -693,7 +705,7 @@ function initial(name: string): string {
   return Array.from(name.trim())[0]?.toUpperCase() ?? "؟";
 }
 
-function ClientCard({ s, today, onOpen, onPay }: { s: ClientSummary; today: string; onOpen: () => void; onPay?: () => void }) {
+function ClientCard({ s, today, waiting, onOpen, onPay }: { s: ClientSummary; today: string; waiting: number; onOpen: () => void; onPay?: () => void }) {
   const c = s.client;
   const unpaid = unpaidItems(s);
   return (
@@ -701,7 +713,10 @@ function ClientCard({ s, today, onOpen, onPay }: { s: ClientSummary; today: stri
       <button type="button" className="card-open" onClick={onOpen} aria-label={`حساب ${c.name}`}>
         <div className="card-top">
           <div className="card-who">
-            <h3>{c.name}</h3>
+            <h3>
+              {c.name}
+              {waiting > 0 && <span className="pending-dot" title={`${waiting} تعديل كيتسنى موافقة المالك`}>⏳</span>}
+            </h3>
             {c.phone && (
               <span className="phone" dir="ltr">
                 {c.phone}
