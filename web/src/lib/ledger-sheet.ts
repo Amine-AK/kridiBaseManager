@@ -19,6 +19,9 @@ import {
   nowParts,
   type Claim,
   type ClaimStatus,
+  type Note,
+  type NoteKind,
+  NOTE_KINDS,
   CLAIM_STATUSES,
   type Repair,
   type RepairStatus,
@@ -46,10 +49,11 @@ export const TABS = {
   repairs: "الإصلاح",
   claims: "خدمة الشركة",
   approvals: "طلبات الموافقة",
+  notes: "الكناش",
 } as const;
 
 /** Tabs added with the shop features: created on their own in sheets set up before them. */
-export const SHOP_KEYS = ["stock", "categories", "sales", "moves", "closings", "settings", "repairs", "claims", "approvals"] as const;
+export const SHOP_KEYS = ["stock", "categories", "sales", "moves", "closings", "settings", "repairs", "claims", "approvals", "notes"] as const;
 
 export const DEFAULT_CATEGORIES: Category[] = [
   { name: "كهرومنزلي كبير", description: "ثلاجات، غسالات، كليماتيزورات، فرنات…", marginTarget: 15, icon: "🧊" },
@@ -84,6 +88,10 @@ export const HEADERS: Record<TableKey, string[]> = {
     "رقم الإصلاح", "الباركود", "التاريخ", "الساعة", "مول الجهاز", "الهاتف", "الجهاز", "المشكل",
     "ثمن الإصلاح", "التسبيق", "الباقي", "الحالة", "ملاحظات", "تاريخ الإضافة", "آخر تعديل",
     "آخر تعديل من", "جهاز التسجيل", "الصورة", "تاريخ التسليم", "ساعة التسليم", "خلص عند التسليم", "تكاليف المحل",
+  ],
+  notes: [
+    "رقم", "التاريخ", "الساعة", "النوع", "الملاحظة", "الزبون", "الهاتف", "تدارت", "دارها", "وقت الإنجاز",
+    "كتبها", "تاريخ الإضافة", "آخر تعديل", "آخر تعديل من", "الجهاز",
   ],
   approvals: [
     "رقم الطلب", "التاريخ", "الساعة", "البائع", "الجهاز", "رقم الزبون", "الزبون", "التعديل", "المبلغ",
@@ -218,6 +226,29 @@ export function rowToCategory(r: unknown[]): Category | null {
 export function rowToSetting(r: unknown[]): Setting | null {
   const key = s(r[0]);
   return key ? { key, value: s(r[1]), updatedAt: s(r[2]) } : null;
+}
+
+export function rowToNote(r: unknown[]): Note | null {
+  const id = s(r[0]);
+  if (!id) return null;
+  const kind = s(r[3]) as NoteKind;
+  return {
+    id,
+    date: d(r[1]),
+    time: t(r[2]),
+    kind: NOTE_KINDS.includes(kind) ? kind : "ملاحظة",
+    text: s(r[4]),
+    customer: s(r[5]),
+    phone: s(r[6]),
+    done: s(r[7]) === "✓" || s(r[7]).toUpperCase() === "TRUE",
+    doneBy: s(r[8]),
+    doneAt: s(r[9]),
+    author: s(r[10]),
+    createdAt: s(r[11]),
+    updatedAt: s(r[12]),
+    by: s(r[13]),
+    origin: s(r[14]),
+  };
 }
 
 export function rowToApproval(r: unknown[]): Approval | null {
@@ -373,6 +404,7 @@ export function rowsToLedger(tables: Partial<Record<TableKey, unknown[][]>>): Le
     repairs: rows("repairs").map(rowToRepair).filter(keep),
     claims: rows("claims").map(rowToClaim).filter(keep),
     approvals: rows("approvals").map(rowToApproval).filter(keep),
+    notes: rows("notes").map(rowToNote).filter(keep),
   };
 }
 
@@ -476,7 +508,16 @@ export function ledgerToRows(ledger: Ledger, today = todayISO()): Record<TableKe
       ];
     }),
   );
-  return { clients, purchases, payments, changes, stock, categories, sales, moves, closings, settings, repairs, claims, approvals };
+  const notes = new Map<string, Cell[]>(
+    ledger.notes.map((x) => [
+      x.id,
+      [
+        x.id, x.date, x.time, x.kind, x.text, x.customer, x.phone, x.done ? "✓" : "", x.doneBy, x.doneAt,
+        x.author, x.createdAt, x.updatedAt, x.by ?? "", x.origin ?? "",
+      ],
+    ]),
+  );
+  return { clients, purchases, payments, changes, stock, categories, sales, moves, closings, settings, repairs, claims, approvals, notes };
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100;

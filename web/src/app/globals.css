@@ -17,6 +17,10 @@
   --info-soft: #e5eefa;
   --whatsapp: #128c56;
   --shadow: 0 1px 2px rgb(16 32 28 / 6%), 0 4px 16px rgb(16 32 28 / 6%);
+  /* الكناش: paper, its ruled lines and the red margin. */
+  --paper: #fffdf4;
+  --paper-line: #dfe6f1;
+  --paper-margin: #e7a3a3;
   --font: var(--font-plex), "IBM Plex Sans Arabic", Tahoma, "Segoe UI", sans-serif;
   --radius: 12px;
   color-scheme: light;
@@ -41,6 +45,9 @@
     --info: #8ab4f0;
     --info-soft: #182a42;
     --whatsapp: #3fd08c;
+    --paper: #1c2420;
+    --paper-line: #2a3833;
+    --paper-margin: #6b3a3a;
     --shadow: none;
     color-scheme: dark;
   }
@@ -63,6 +70,9 @@
   --info: #8ab4f0;
   --info-soft: #182a42;
   --whatsapp: #3fd08c;
+  --paper: #1c2420;
+  --paper-line: #2a3833;
+  --paper-margin: #6b3a3a;
   --shadow: none;
   color-scheme: dark;
 }
@@ -1174,3 +1184,47 @@ a.btn { text-decoration: none; }
 .approval-actions .link-btn { flex: none; white-space: nowrap; }
 .approval-note-btn { justify-self: start; }
 .field textarea { width: 100%; }
+
+/* الكناش (NotesView.tsx): a ruled paper notebook. Lines every 32px, red margin on the start side. */
+.notebook {
+  --rule: 32px;
+  border: 1px solid var(--line); border-radius: 6px 14px 14px 6px; background-color: var(--paper);
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--rule) - 1px), var(--paper-line) calc(var(--rule) - 1px), var(--paper-line) var(--rule));
+  background-position: 0 6px;
+  box-shadow: var(--shadow); position: relative; padding: 6px 0 var(--rule);
+}
+.notebook::before { content: ""; position: absolute; top: 0; bottom: 0; inset-inline-start: 46px; border-inline-start: 2px solid var(--paper-margin); }
+.notebook-write { padding-inline: 58px 12px; display: grid; gap: 0; min-width: 0; }
+.notebook-write textarea {
+  width: 100%; min-height: calc(var(--rule) * 3); border: 0; background: transparent; color: var(--ink); resize: vertical;
+  font: inherit; font-size: 17px; line-height: var(--rule); padding: 0; outline: none;
+}
+.notebook-write textarea::placeholder { color: var(--muted); opacity: 0.8; }
+.notebook-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: var(--rule); padding-block: 2px; }
+.notebook-tools .chip { min-height: 28px; padding: 0 10px; font-size: 13px; }
+.notebook-who { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding-block: 4px; }
+.notebook-who input {
+  width: 100%; min-width: 0; min-height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 15px;
+}
+.notebook-who input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.notebook-day {
+  position: relative; margin: 0; height: var(--rule); line-height: var(--rule); padding-inline: 58px 12px;
+  font-size: 15px; font-weight: 700; color: var(--info);
+}
+.notebook-lines { list-style: none; margin: 0; padding: 0; }
+.note-line { position: relative; display: flex; align-items: flex-start; gap: 8px; padding-inline: 4px 12px; line-height: var(--rule); }
+.note-time { flex: none; width: 42px; text-align: center; font-size: 12px; color: var(--muted); }
+.note-tick {
+  flex: none; width: 22px; height: 22px; margin-top: 5px; margin-inline-start: 8px; border: 2px solid var(--muted); border-radius: 5px;
+  background: transparent; color: #fff; font-size: 14px; line-height: 1; cursor: pointer; display: grid; place-items: center; padding: 0;
+}
+.note-line.done .note-tick { background: var(--accent); border-color: var(--accent); }
+.note-body { flex: 1; min-width: 0; border: 0; background: none; padding: 0; color: var(--ink); font: inherit; text-align: start; cursor: pointer; line-height: var(--rule); }
+.note-text { font-size: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-line.done .note-text { text-decoration: line-through; color: var(--muted); }
+.note-meta { font-size: 12px; color: var(--muted); }
+.note-kind { font-size: 12px; padding: 1px 6px; border-radius: 6px; background: var(--warn-soft); color: var(--warn); margin-inline-end: 4px; white-space: nowrap; }
+.note-call { font-size: 12px; margin-inline-start: 4px; }
+.notebook-empty { margin: 0; padding-inline: 58px 12px; line-height: var(--rule); color: var(--muted); }
+.tab-count.note-count { background: var(--warn); }

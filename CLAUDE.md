@@ -33,7 +33,7 @@ reminders. Installable PWA, used on phones and the shop PC, works offline.
   dd/mm/yyyy; shop time zone Africa/Casablanca (`src/lib/sheet-logic.ts`).
 - IDs: `newLedgerId(prefix)` in `src/lib/ledger.ts`, prefixes: C client,
   S purchase, P payment, T instalment change, O op, I stock item, V sale,
-  M stock move, K cash-drawer close, R repair, W after-sales request, A approval request (= "A-" + the change's opId).
+  M stock move, K cash-drawer close, R repair, W after-sales request, N notebook line, A approval request (= "A-" + the change's opId).
 - Comments explain *why*, short, in plain English. Keep files' existing style.
 - Every user-visible number on phones: `<bdi dir="ltr">` around codes / digits.
 - Per-device settings go in `localStorage` (try/catch every access). Keys in use:
@@ -69,12 +69,12 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
   `purchase.add/update/delete`, `payment.add/update/delete`,
   `stock.add/update/adjust/delete`, `sale.add/delete`, `category.save`,
   `caisse.close`, `setting.save` (shop-wide settings, key → JSON text),
-  `repair.add/update/delete`, `claim.add/update/delete`, `approval.add/decide/note`. Edits carry `base` (= record's `updatedAt`) → conflicts.
+  `repair.add/update/delete`, `claim.add/update/delete`, `approval.add/decide/note`, `note.add/update/delete`. Edits carry `base` (= record's `updatedAt`) → conflicts.
 - Server checks permissions per op: `src/app/api/sync/route.ts` +
   `src/lib/permissions.ts` (pure, tested) + `src/lib/access.ts`.
 - Sheet layout (tab names, columns, row ↔ object): `src/lib/ledger-sheet.ts`
   (`TABS`: الزبناء, المشتريات, الدفعات, تغييرات الطريطة, المخزون, الفئات,
-  المبيعات, حركات المخزون, الصندوق اليومي, الإعدادات, الإصلاح, خدمة الشركة, طلبات الموافقة). New tabs go in `SHOP_KEYS`:
+  المبيعات, حركات المخزون, الصندوق اليومي, الإعدادات, الإصلاح, خدمة الشركة, طلبات الموافقة, الكناش). New tabs go in `SHOP_KEYS`:
   existing sheets get them created on first use (`ensureShopTabs` in `store.ts`).
   **New columns always go at the end of a tab** (old rows keep their positions;
   the header check in `ensureShopTabs` adds the new titles); reading a missing
@@ -103,7 +103,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 
 | Task / feature | File(s) |
 |---|---|
-| App shell, main tabs (الكريدي / البيع / المخزون / الإصلاح = sub-tabs الإصلاح + خدمة الشركة, `REPAIR_TABS`, with the count of late requests / الميزانية = sub-tabs الصندوق + التقارير, `BUDGET_TABS`), approvals bar in الكريدي, ⏳ on customers with waiting changes, customer list (phone: `ClientRow` lines, PC: `ClientCard` cards, switch `useIsPhone` < 640 px), search | `components/Dashboard.tsx` (`VIEWS`) |
+| App shell, main tabs (الكريدي / البيع / المخزون / الإصلاح / الكناش (every account, stock role too; badge = open customer requests) = sub-tabs الإصلاح + خدمة الشركة, `REPAIR_TABS`, with the count of late requests / الميزانية = sub-tabs الصندوق + التقارير, `BUDGET_TABS`), approvals bar in الكريدي, ⏳ on customers with waiting changes, customer list (phone: `ClientRow` lines, PC: `ClientCard` cards, switch `useIsPhone` < 640 px), search | `components/Dashboard.tsx` (`VIEWS`) |
 | Customer page (purchases, payments, delete; «🏭 ريكلاماسيون» and the open-request flag on purchases; banner of sellers' waiting changes / notes / refusals, ⏳ rows, owner can't edit them until deciding) | `components/ClientDetail.tsx` |
 | Add / edit customer, instalment (الطريطة) | `components/ClientForms.tsx` |
 | Add purchase, record / edit payment (split hint, next due date) | `components/MoneyForms.tsx` |
@@ -117,6 +117,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Repairs (الإصلاح): devices brought to repair (photo, owner, problem, price, advance, status, own barcode, sticker / image, WhatsApp received / ready / delivered; 🤝 تسلم opens `DeliverDialog`: delivered date / time, final price, `paid` then, shop `cost`; profit for `seesCost`; the form's phone fills the owner's name from الزبناء or past repairs on the device, `ownerForPhone`, no request); service `repairs` (server hides repairs from accounts without it, `ledgerFor`; an account with «الصندوق» but not «الإصلاح» gets the repairs with money only, no owner / phone / problem / photo). On a repair `device` = the repaired device, the recording device is `origin` | `components/RepairsView.tsx`, `lib/repairs.ts` (pure, tested), `Repair` in `lib/ledger.ts`, photo `photoForCell` in `lib/image.ts` |
 | After-sales requests (خدمة الشركة, sub-tab of الإصلاح, `REPAIR_TABS` in `Dashboard.tsx`): a sold product has a fault the brand's service must repair. «🏭 ريكلاماسيون» on the customer page (their purchases) or «＋ طلب جديد» (any sale, cash too, or typed by hand) → choose the brand's service → saved (`Claim`) and WhatsApp opens on the service's number. Late = open and 48 h since `lastSentAt` (request or last reminder, Sundays included): red, counted on the tabs, «🔔 ذكّر الشركة» (reminder message, `reminders` + 1). Brands' numbers: setting `service-contacts` (⚙️ menu «خدمة العملاء»). Service `claims` (server hides requests without it; `setting.save` of `service-contacts` needs it) | `components/ClaimsView.tsx` (`ClaimsView`, `ClaimForm`, `ServiceContactsDialog`, `useNow`), `lib/claims.ts` (pure, tested), `Claim` in `lib/ledger.ts`, flag on purchases in `components/ClientDetail.tsx` |
 | Approvals of sellers' credit changes: bar in الكريدي (`ApprovalsBar`), list grouped by customer with ✓ قبول / ✕ رفض / ✓ قبل الكل / 📝 قبول بملاحظة, seller's «📝 زيد ملاحظة للمالك» (`ApprovalsDialog`, also from the customer page banner), ⏳ on customers and rows | `components/ApprovalsView.tsx`, `lib/approvals.ts` (pure, tested), `components/ClientDetail.tsx`, `Dashboard.tsx` |
+| Notebook (الكناش, main tab): ruled-paper page, write a line at once (📝 ملاحظة / 🙋 طلب زبون, optional customer: name fills from the phone via `ownerForPhone`, on-device data), pages per day, ✓ tick (who / when), search + filters, edit; every account writes and ticks, only the owner deletes. Paper colours `--paper`, `--paper-line`, `--paper-margin` | `components/NotesView.tsx`, `lib/notes.ts` (pure, tested), `Note` in `lib/ledger.ts`, `.notebook*` / `.note-*` in `globals.css` |
 | Reports screen | `components/ReportsView.tsx` |
 | Shop barcodes (EAN-13 starting with 2, new number) | `lib/barcode.ts` |
 | Sticker printing window (sizes, list, 🔄 / ⬇️, print pages) | `components/LabelPrint.tsx` |
