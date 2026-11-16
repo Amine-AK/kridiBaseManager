@@ -103,8 +103,8 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 
 | Task / feature | File(s) |
 |---|---|
-| App shell, main tabs (الكريدي / البيع / المخزون / الإصلاح / الميزانية = sub-tabs الصندوق + التقارير, `BUDGET_TABS`), customer list (phone: `ClientRow` lines, PC: `ClientCard` cards, switch `useIsPhone` < 640 px), search | `components/Dashboard.tsx` (`VIEWS`) |
-| Customer page (purchases, payments, delete) | `components/ClientDetail.tsx` |
+| App shell, main tabs (الكريدي / البيع / المخزون / الإصلاح = sub-tabs الإصلاح + خدمة الشركة, `REPAIR_TABS`, with the count of late requests / الميزانية = sub-tabs الصندوق + التقارير, `BUDGET_TABS`), approvals bar in الكريدي, ⏳ on customers with waiting changes, customer list (phone: `ClientRow` lines, PC: `ClientCard` cards, switch `useIsPhone` < 640 px), search | `components/Dashboard.tsx` (`VIEWS`) |
+| Customer page (purchases, payments, delete; «🏭 ريكلاماسيون» and the open-request flag on purchases; banner of sellers' waiting changes / notes / refusals, ⏳ rows, owner can't edit them until deciding) | `components/ClientDetail.tsx` |
 | Add / edit customer, instalment (الطريطة) | `components/ClientForms.tsx` |
 | Add purchase, record / edit payment (split hint, next due date) | `components/MoneyForms.tsx` |
 | Payment receipt, statement (كشف), WhatsApp message texts | `lib/receipt.ts` (texts) + `components/ReceiptDialog.tsx` (screen / print) |
@@ -129,12 +129,12 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Scanner engine (formats + check digits, 2-read confirm, decode region, worker, camera tuning) | `src/scanner/*` (see below) |
 | USB / Bluetooth scanner (keyboard input, AZERTY fix) | `components/useScannerInput.ts`, `lib/scanner-input.ts` |
 | Beep sound | `lib/beep.ts` |
-| Login, session cookie, users / roles / services | `app/login/page.tsx`, `app/api/login`, `lib/auth.ts`, `lib/users.ts`, `lib/roles.ts`, `components/UsersDialog.tsx` |
+| Login, session cookie, users / roles / services (`SELLER_SERVICES`: … `repairs`, `claims`, `reports`, `backup`; role `seller` = credit changes wait for the owner) | `app/login/page.tsx`, `app/api/login`, `lib/auth.ts`, `lib/users.ts`, `lib/roles.ts`, `components/UsersDialog.tsx` |
 | Who may do what (UI hides, server enforces) | `lib/roles.ts` (`can`, `seesCost`), `lib/permissions.ts` |
 | Route protection (what needs login) | `src/proxy.ts` (matcher: login, PWA files, `/scanner/` are public) |
 | Offline / PWA | `public/sw.js` (cache version `VERSION`), `components/RegisterServiceWorker.tsx`, `components/InstallButton.tsx`, `app/manifest.ts`, `lib/idb.ts` |
 | Sync state bar, refused changes (who / device / what differs, filtered by permissions) | `components/SyncBar.tsx`, `lib/change-origin.ts` |
-| Header menu (backup, theme, logout) | `components/TopMenu.tsx`; theme `lib/theme.ts` |
+| Header menu (users, «🏭 خدمة العملاء» brands' numbers for accounts with `claims`, backup, theme, logout) | `components/TopMenu.tsx`; theme `lib/theme.ts` |
 | Excel backup (every tab except users; each cell kept under Excel's 32 767 chars by `fitCell`, so pictures stay ≤ 32 000: `MAX_PHOTO_LENGTH`) | `lib/xlsx.ts`, `lib/backup.ts`, `components/BackupDialog.tsx`, `app/api/export` |
 | Archive (old customers) | `components/ArchiveView.tsx`, `app/api/archive/*`, `lib/store.ts` |
 | Sheets API client / env vars | `lib/sheets.ts`, `lib/env.ts` |
@@ -156,6 +156,8 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 
 ## Planned, not now
 
+- Not under approval (on purpose): archiving customers (`/api/archive`, moves paid-off
+  customers, debts unchanged). Ask the owner before adding it.
 - **Operating costs (تكاليف التشغيل)** will go in a future «معلومات المحل»
   (shop info) section and feed the budget / reports. The owner asked to wait:
   don't add them until asked.
