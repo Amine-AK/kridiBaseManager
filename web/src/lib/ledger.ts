@@ -222,6 +222,48 @@ export interface Repair {
   origin?: string;
 }
 
+/** Where a request sent to a brand's after-sales service is (خدمة الشركة). */
+export const CLAIM_STATUSES = ["تصيفط", "كيتصلح", "تحل"] as const;
+export type ClaimStatus = (typeof CLAIM_STATUSES)[number];
+
+/**
+ * A product we sold has a fault the brand's after-sales service must repair:
+ * the request sent to them on WhatsApp, followed until it is solved.
+ */
+export interface Claim {
+  id: string;
+  /** When the request was sent: yyyy-mm-dd, HH:mm. */
+  date: string;
+  time: string;
+  /** The customer the service must call (typed in the form, not tied to الزبناء). */
+  customer: string;
+  phone: string;
+  item: string;
+  /** When we sold it ("" = not known). */
+  saleDate: string;
+  /** The after-sales service: brand name and its WhatsApp number, as they were when sent. */
+  company: string;
+  servicePhone: string;
+  problem: string;
+  status: ClaimStatus;
+  /** ISO time of the last message sent to the service (the request, then each reminder): the 48 h run from it. */
+  lastSentAt: string;
+  reminders: number;
+  /** When it was solved ("" while open). */
+  resolvedDate: string;
+  resolvedTime: string;
+  notes: string;
+  /** Where the product comes from, "" when typed by hand: credit customer, their purchase, the sale line. */
+  clientId: string;
+  purchaseId: string;
+  saleId: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Account and device that made the last change (see lib/change-origin.ts). */
+  by?: string;
+  origin?: string;
+}
+
 /** A shop-wide setting shared by every device (e.g. the default sticker look), as JSON text. */
 export interface Setting {
   key: string;
@@ -231,6 +273,8 @@ export interface Setting {
 
 /** Setting keys in use. */
 export const STICKER_LOOK_KEY = "sticker-look";
+/** After-sales services of the brands (خدمة العملاء): JSON list, see lib/claims.ts. */
+export const SERVICE_CONTACTS_KEY = "service-contacts";
 
 export interface Ledger {
   clients: Client[];
@@ -244,10 +288,11 @@ export interface Ledger {
   closings: CaisseClose[];
   settings: Setting[];
   repairs: Repair[];
+  claims: Claim[];
 }
 
 export function emptyLedger(): Ledger {
-  return { clients: [], purchases: [], payments: [], changes: [], stock: [], categories: [], sales: [], moves: [], closings: [], settings: [], repairs: [] };
+  return { clients: [], purchases: [], payments: [], changes: [], stock: [], categories: [], sales: [], moves: [], closings: [], settings: [], repairs: [], claims: [] };
 }
 
 export const EMPTY_LEDGER: Ledger = emptyLedger();
@@ -276,7 +321,7 @@ const ID_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I: easy to rea
  * "C-7K2QXM9A": prefix C (client), S (purchase), P (payment), T (instalment change), O (operation),
  * I (stock item), V (sale), M (stock move), K (cash drawer closing).
  */
-export type IdPrefix = "C" | "S" | "P" | "T" | "O" | "I" | "V" | "M" | "K" | "R";
+export type IdPrefix = "C" | "S" | "P" | "T" | "O" | "I" | "V" | "M" | "K" | "R" | "W";
 export function newLedgerId(prefix: IdPrefix): string {
   const bytes = new Uint8Array(8);
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) crypto.getRandomValues(bytes);
@@ -284,7 +329,7 @@ export function newLedgerId(prefix: IdPrefix): string {
   return `${prefix}-${Array.from(bytes, (b) => ID_CHARS[b % ID_CHARS.length]).join("")}`;
 }
 
-const ID_RE = /^[CSPTOIVMKR]-[A-Z0-9]{4,16}$/;
+const ID_RE = /^[CSPTOIVMKRW]-[A-Z0-9]{4,16}$/;
 export const isLedgerId = (s: unknown): s is string => typeof s === "string" && ID_RE.test(s);
 
 // ---------------------------------------------------------------- operations
@@ -319,6 +364,9 @@ type OpBody =
   | { type: "repair.add"; repair: Repair }
   | { type: "repair.update"; id: string; base: string; patch: Partial<Omit<Repair, "id" | "createdAt" | "updatedAt" | "by" | "origin">> }
   | { type: "repair.delete"; id: string }
+  | { type: "claim.add"; claim: Claim }
+  | { type: "claim.update"; id: string; base: string; patch: Partial<Omit<Claim, "id" | "createdAt" | "updatedAt" | "by" | "origin">> }
+  | { type: "claim.delete"; id: string }
   /** A shop-wide setting (key → JSON text), e.g. the default sticker look. */
   | { type: "setting.save"; key: string; value: string }
   /** Lines sold together; a credit sale also brings the purchases for the customer's account. */
@@ -429,6 +477,22 @@ function checkRepair(r: Repair, ledger: Ledger): string | null {
   // A repair's barcode never matches a product or another repair.
   const taken = codeTaken(ledger, [r.code], "") ?? ledger.repairs.find((x) => x.id !== r.id && x.code === r.code)?.device;
   if (taken) return `الباركود «${r.code}» مستعمل ديجا`;
+  return null;
+}
+
+function checkClaim(c: Claim): string | null {
+  if (!isLedgerId(c.id) || !c.id.startsWith("W-")) return "رقم الطلب غير صحيح";
+  if (!date(c.date) || !c.date || !time(c.time)) return "التاريخ ولا الساعة غير صحيحين";
+  if (!text(c.customer, 200) || !c.customer.trim()) return "سمية الزبون ضرورية";
+  if (!text(c.item, 300) || !c.item.trim()) return "السلعة ضرورية";
+  if (!text(c.company, 200) || !c.company.trim() || !text(c.servicePhone, 40) || !c.servicePhone.trim()) return "خدمة الصيانة ديال الشركة ضرورية";
+  if (!text(c.phone, 40) || !text(c.problem, 1000) || !c.problem.trim() || !text(c.notes, 1000)) return "معلومات الطلب غير صحيحة";
+  if (!date(c.saleDate) || !date(c.resolvedDate) || (c.resolvedTime !== "" && !time(c.resolvedTime))) return "التاريخ غير صحيح";
+  if (!CLAIM_STATUSES.includes(c.status)) return "الحالة غير صحيحة";
+  if (c.status === "تحل" && !c.resolvedDate) return "تاريخ الحل ضروري";
+  if (typeof c.lastSentAt !== "string" || Number.isNaN(Date.parse(c.lastSentAt))) return "وقت آخر رسالة غير صحيح";
+  if (!Number.isInteger(c.reminders) || c.reminders < 0 || c.reminders > 10_000) return "عدد التذكيرات غير صحيح";
+  if (![c.clientId, c.purchaseId, c.saleId].every((x) => text(x, 60))) return "معلومات الطلب غير صحيحة";
   return null;
 }
 
@@ -690,6 +754,33 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
     case "repair.delete": {
       if (!ledger.repairs.some((x) => x.id === op.id)) return { ledger, result: "already" };
       return { ledger: { ...ledger, repairs: ledger.repairs.filter((x) => x.id !== op.id) }, result: "ok" };
+    }
+    case "claim.add": {
+      const c = op.claim;
+      if (!c || typeof c !== "object") return invalid(ledger, "الطلب غير صحيح");
+      if (ledger.claims.some((x) => x.id === c.id)) return { ledger, result: "already" };
+      const next: Claim = { ...c, updatedAt: op.at, by: op.by ?? "", origin: op.device ?? "" };
+      const err = checkClaim(next);
+      if (err) return invalid(ledger, err);
+      return { ledger: { ...ledger, claims: [...ledger.claims, next] }, result: "ok" };
+    }
+    case "claim.update": {
+      const c = ledger.claims.find((x) => x.id === op.id);
+      if (!c) return invalid(ledger, "هاد الطلب ما بقاش");
+      if (c.updatedAt === op.at) return { ledger, result: "already" };
+      if (c.updatedAt !== op.base) return { ledger, result: "conflict", message: CONFLICT };
+      const fields: (keyof Claim)[] = [
+        "date", "time", "customer", "phone", "item", "saleDate", "company", "servicePhone", "problem", "status",
+        "lastSentAt", "reminders", "resolvedDate", "resolvedTime", "notes",
+      ];
+      const next: Claim = { ...c, ...pick<Claim>(op.patch, fields), updatedAt: op.at, by: op.by ?? "", origin: op.device ?? "" };
+      const err = checkClaim(next);
+      if (err) return invalid(ledger, err);
+      return { ledger: { ...ledger, claims: replace(ledger.claims, c.id, next) }, result: "ok" };
+    }
+    case "claim.delete": {
+      if (!ledger.claims.some((x) => x.id === op.id)) return { ledger, result: "already" };
+      return { ledger: { ...ledger, claims: ledger.claims.filter((x) => x.id !== op.id) }, result: "ok" };
     }
     case "setting.save": {
       if (typeof op.key !== "string" || !/^[a-z0-9-]{1,40}$/.test(op.key) || typeof op.value !== "string" || op.value.length > 20_000) {

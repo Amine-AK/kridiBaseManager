@@ -433,6 +433,28 @@ the device was brought («🔧 تسبيقات الإصلاح»). Saved in the sh
 window: without it a seller doesn't see the tab, and the server doesn't send
 repairs (customers' phones) to their device.
 
+### 🏭 خدمة الشركة (after-sales requests to the brands)
+
+A product the shop sold (a fridge…) has a fault that the brand's own service
+must repair. The request is sent to that service on WhatsApp and followed here,
+in الإصلاح ← «🏭 خدمة الشركة».
+
+- **⚙️ ← خدمة العملاء**: save each brand's after-sales WhatsApp number once
+  (shared by every device through the sheet, setting `service-contacts`).
+- **New request**: «🏭 ريكلاماسيون» on a customer's page (choose one of their
+  purchases), or «＋ طلب جديد» in the tab (any sale, cash or credit, or a
+  product typed by hand). Choose the brand's service, check the customer's name
+  and number (filled from the app's data, both can be changed), write the fault.
+  «📲 سجل وصيفط فواتساب» saves the request and opens WhatsApp on the service's
+  number with the message ready (device, sale date, fault, customer to call).
+- **Following**: statuses «تصيفط», «كيتصلح», «تحل». A request still open 48 hours
+  after the last message sent (Sundays and holidays included) is «⏰ معطل»: red
+  in the list, counted on the الإصلاح tab, and flagged on the purchase in the
+  customer's page. «🔔 ذكّر الشركة فواتساب» opens a reminder asking them to call
+  the customer; it is counted, and the 48 hours start again.
+- Sheet tab «خدمة الشركة» (created on first use). Own permission «🏭 خدمة الشركة»
+  in the accounts table; accounts without it don't receive the requests.
+
 ### Who changed a product, and refused changes
 
 Every change says which account made it (stamped by the server) and from which

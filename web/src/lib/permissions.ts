@@ -1,6 +1,6 @@
 // Rules about who may do what, as pure functions (used by the server routes, and tested).
 
-import type { Ledger, LedgerOp } from "./ledger";
+import { SERVICE_CONTACTS_KEY, type Ledger, type LedgerOp } from "./ledger";
 import { can, seesCost, type Me, type Permission } from "./roles";
 
 /** May this user make this change (sent from a phone)? */
@@ -26,9 +26,11 @@ export function opAllowed(me: Me, op: LedgerOp): boolean {
       return any("payment", "sell_credit");
     case "stock.add":
     case "category.save":
-    // The default sticker look: whoever prints stickers (owner, stock manager).
-    case "setting.save":
       return any("stock_add");
+    case "setting.save":
+      // The brands' after-sales numbers: whoever follows the requests. The default
+      // sticker look: whoever prints stickers (owner, stock manager).
+      return op.key === SERVICE_CONTACTS_KEY ? any("claims") : any("stock_add");
     case "stock.adjust":
       // The stock manager adds deliveries; taking stock out needs full stock rights.
       return op.move && op.move.delta < 0 ? any("stock") : any("stock_add");
@@ -47,6 +49,10 @@ export function opAllowed(me: Me, op: LedgerOp): boolean {
     case "repair.update":
     case "repair.delete":
       return any("repairs");
+    case "claim.add":
+    case "claim.update":
+    case "claim.delete":
+      return any("claims");
     default:
       return false;
   }
@@ -92,6 +98,8 @@ export function ledgerFor(me: Me, ledger: Ledger): Ledger {
     const forDrawer = can(me, "caisse") ? ledger.repairs.filter((r) => r.advance > 0 || r.paid > 0) : [];
     ledger = { ...ledger, repairs: forDrawer.map((r) => ({ ...r, owner: "", phone: "", problem: "", notes: "", photo: "" })) };
   }
+  // Requests to the brands' services hold customers' names and phones too.
+  if (!can(me, "claims")) ledger = { ...ledger, claims: [] };
   const cost = seesCost(me);
   const stock = cost ? ledger.stock : ledger.stock.map((s) => ({ ...s, buyPrice: 0 }));
   if (me.role === "stock") return { ...ledger, clients: [], purchases: [], payments: [], changes: [], sales: [], closings: [], stock };

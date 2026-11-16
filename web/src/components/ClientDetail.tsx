@@ -13,6 +13,8 @@ import { ReceiptDialog } from "./ReceiptDialog";
 import type { LedgerState } from "./useLedger";
 import { can } from "@/lib/roles";
 import { Confirm } from "./ui";
+import { ClaimForm, useNow } from "./ClaimsView";
+import { isLate, openClaimFor } from "@/lib/claims";
 
 type Sub =
   | { kind: "info" }
@@ -25,12 +27,14 @@ type Sub =
   | { kind: "delete-payment"; payment: Payment }
   | { kind: "delete-client" }
   | { kind: "archive" }
+  | { kind: "claim" }
   | null;
 
 export function ClientDetail({ data, clientId, onClose, onToast }: { data: LedgerState; clientId: string; onClose: () => void; onToast: (t: string) => void }) {
   const [sub, setSub] = useState<Sub>(null);
   const allow = (p: Parameters<typeof can>[1]) => can(data.me, p);
   const [busy, setBusy] = useState(false);
+  const now = useNow();
   const s = data.summaries.find((x) => x.client.id === clientId);
   if (!s) {
     return (
@@ -137,6 +141,11 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
             تعديل المعلومات
           </button>
           )}
+          {allow("claims") && (
+          <button type="button" className="btn" onClick={() => setSub({ kind: "claim" })} title="سلعة فيها عطب: صيفط طلب لخدمة الصيانة ديال الشركة">
+            🏭 ريكلاماسيون
+          </button>
+          )}
         </div>
 
         <section className="detail-section" aria-label="المشتريات">
@@ -150,6 +159,13 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
                   <span className="muted small">
                     {displayDate(it.purchase.date)} · {money(it.purchase.price)}
                   </span>
+                  {(() => {
+                    // A request is open at the brand's service for this product.
+                    const claim = openClaimFor(data.ledger?.claims ?? [], it.purchase.id);
+                    if (!claim) return null;
+                    const late = isLate(claim, now);
+                    return <span className={`claim-flag ${late ? "late" : ""}`}>{late ? "⏰" : "🏭"} عند {claim.company}{late ? " · معطل" : ""}</span>;
+                  })()}
                 </div>
                 <span className={`row-amount ${it.remaining > 0 ? "" : "ok-text"}`}>{it.remaining > 0 ? `باقي ${money(it.remaining)}` : "خالصة ✓"}</span>
                 <div className="row-actions">
@@ -315,6 +331,17 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
             data.run(`حذف · ${c.name}`, { type: "client.delete", id: c.id, ...(withHistory ? { withHistory: true } : {}) });
             onToast(`تحذف ${c.name}`);
             onClose();
+          }}
+        />
+      )}
+      {sub?.kind === "claim" && (
+        <ClaimForm
+          data={data}
+          clientId={c.id}
+          onClose={() => setSub(null)}
+          onSaved={() => {
+            onToast("تسجل الطلب. تبعو فـ الإصلاح ← خدمة الشركة");
+            setSub(null);
           }}
         />
       )}

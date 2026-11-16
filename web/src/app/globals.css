@@ -1125,3 +1125,22 @@ a.btn { text-decoration: none; }
 /* الميزانية: الصندوق / التقارير switch (Dashboard.tsx). */
 .budget-tabs { margin-bottom: 12px; }
 .budget-tabs button { min-height: 44px; font-weight: 600; }
+
+/* خدمة الشركة (ClaimsView.tsx): products sold to choose from in the request form. */
+.claim-pick { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 220px; overflow-y: auto; }
+.claim-pick button {
+  width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 12px; min-height: 44px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: inherit; font: inherit; text-align: start; cursor: pointer;
+}
+.claim-pick button.on { border-color: var(--accent); background: var(--accent-soft); }
+.claim-pick strong { min-width: 0; overflow-wrap: anywhere; }
+.claim-pick .small { flex: none; }
+.contact-form { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+/* Number of late requests on a tab. */
+.tab-count {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; margin-inline-start: 6px;
+  border-radius: 10px; background: var(--danger); color: #fff; font-size: 12px; font-weight: 700;
+}
+.claim-flag { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); white-space: nowrap; }
+.claim-flag.late { background: var(--danger-soft); color: var(--danger); }
+.row-main .claim-flag { justify-self: start; }
