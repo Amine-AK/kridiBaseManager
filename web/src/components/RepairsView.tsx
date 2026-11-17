@@ -206,12 +206,25 @@ export function RepairsView({ data, onToast }: { data: LedgerState; onToast: (ms
 }
 
 /** Add a repair, or change one: photo, owner, device, problem, price, advance, when. */
-function RepairForm({ data, repair, onClose, onSaved }: { data: LedgerState; repair?: Repair; onClose: () => void; onSaved: (id: string, isNew: boolean) => void }) {
+export function RepairForm({
+  data,
+  repair,
+  initial,
+  onClose,
+  onSaved,
+}: {
+  data: LedgerState;
+  repair?: Repair;
+  /** A new repair for a known customer (from their page). */
+  initial?: { owner: string; phone: string };
+  onClose: () => void;
+  onSaved: (id: string, isNew: boolean) => void;
+}) {
   const ledger = data.ledger!;
   const now = nowParts();
   const [v, setV] = useState({
-    owner: repair?.owner ?? "",
-    phone: repair?.phone ?? "",
+    owner: repair?.owner ?? initial?.owner ?? "",
+    phone: repair?.phone ?? initial?.phone ?? "",
     device: repair?.device ?? "",
     problem: repair?.problem ?? "",
     price: repair?.price ? String(repair.price) : "",
@@ -392,6 +405,56 @@ function RepairForm({ data, repair, onClose, onSaved }: { data: LedgerState; rep
 }
 
 /** One repair: photo, details, status, its barcode (image / sticker) and WhatsApp messages to the owner. */
+/** One repair opened from elsewhere (a customer's page): its detail, edit and delete. */
+export function RepairPanel({
+  data,
+  repairId,
+  justAdded,
+  onClose,
+  onToast,
+}: {
+  data: LedgerState;
+  repairId: string;
+  justAdded?: boolean;
+  onClose: () => void;
+  onToast: (msg: string) => void;
+}) {
+  const [mode, setMode] = useState<"open" | "edit" | "delete">("open");
+  const repair = data.ledger!.repairs.find((r) => r.id === repairId);
+  if (!repair) return null;
+  if (mode === "edit") {
+    return (
+      <RepairForm
+        data={data}
+        repair={repair}
+        onClose={() => setMode("open")}
+        onSaved={() => {
+          onToast("تبدل الإصلاح");
+          setMode("open");
+        }}
+      />
+    );
+  }
+  if (mode === "delete") {
+    return (
+      <Confirm
+        title="حذف الإصلاح"
+        confirmLabel="حذف"
+        danger
+        onClose={() => setMode("open")}
+        onConfirm={() => {
+          data.run(`حذف إصلاح · ${repair.device}`, { type: "repair.delete", id: repair.id });
+          onToast("تحذف الإصلاح");
+          onClose();
+        }}
+      >
+        <p className="lead">نحيدو هاد الإصلاح؟ الصورة والمعلومات ديالو غادي يتمسحو.</p>
+      </Confirm>
+    );
+  }
+  return <RepairDetail data={data} repair={repair} justAdded={justAdded} onClose={onClose} onEdit={() => setMode("edit")} onDelete={() => setMode("delete")} onToast={onToast} />;
+}
+
 function RepairDetail({
   data,
   repair: r,

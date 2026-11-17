@@ -9,6 +9,10 @@ interface Props {
   footer?: ReactNode;
   /** Disable closing (e.g. while saving). */
   busy?: boolean;
+  /** Replaces the title in the header (e.g. a menu to switch pages); `title` still names the dialog. */
+  head?: ReactNode;
+  /** Extra class: "page" = full screen on a PC too. */
+  className?: string;
 }
 
 // On a phone a dialog is a full screen page, so the phone's back button must
@@ -67,7 +71,7 @@ function register(entry: Open) {
   };
 }
 
-export function Modal({ title, onClose, children, footer, busy }: Props) {
+export function Modal({ title, onClose, children, footer, busy, head, className }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const latest = useRef({ onClose, busy });
   latest.current = { onClose, busy };
@@ -85,8 +89,9 @@ export function Modal({ title, onClose, children, footer, busy }: Props) {
   return (
     <dialog
       ref={ref}
-      className="modal"
-      aria-labelledby="modal-title"
+      className={`modal${className ? ` ${className}` : ""}`}
+      aria-label={head ? title : undefined}
+      aria-labelledby={head ? undefined : "modal-title"}
       onCancel={(e) => {
         e.preventDefault();
         if (!busy) onClose();
@@ -97,7 +102,7 @@ export function Modal({ title, onClose, children, footer, busy }: Props) {
     >
       <div className="modal-inner">
         <header className="modal-head">
-          <h2 id="modal-title">{title}</h2>
+          {head ?? <h2 id="modal-title">{title}</h2>}
           <button type="button" className="icon-btn modal-close" onClick={onClose} disabled={busy} aria-label="سد">
             {/* ✕ on a PC; a back arrow on a phone, where the dialog is a page. */}
             <span className="on-wide">✕</span>

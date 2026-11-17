@@ -459,6 +459,28 @@ A main tab that looks like the paper notebook next to the till, for every accoun
   arrives (that needs a push server, not set up); on iPhone only the installed app
   can show notifications.
 
+### 🛒 Faster sale screen
+
+- The search, 📷 and a row of categories stay at the top while the cart scrolls.
+- A category opens its own full-screen page (no app header): a menu at the top to
+  switch category, a search that stays in the category, filters «✅ متوفر», «جديد»,
+  «مستعمل», and the products as cards (in stock and best sellers first). Tapping a
+  card adds it to the sale (🛒 shows how many), and the page stays open for the
+  next one; the bottom bar shows the cart and goes back. Long categories load as
+  you scroll. The phone's back button closes the page.
+- «عطاك» (cash given): quick amounts («✓ المبلغ كامل» and round notes), then the
+  change to give back («🔁 رد ليه …») or «✓ خالص». If it's short, «📒 الباقي كريدي على
+  زبون» turns the sale into a credit sale with what was given as the advance. In a
+  credit sale, an advance that covers everything offers «💵 سجلها بيع كاش».
+
+### 🔧 A customer's repairs and after-sales requests on their page
+
+In الكريدي, the customer's page has «🔧 الإصلاح وخدمة الشركة»: their requests to the
+brands (by account or phone) and their repairs (by any of their numbers), open
+ones first, with status and «⏰ معطل». Tap one to follow it right there (remind the
+brand, change status, deliver…); «🏭 ريكلاماسيون» and «🔧 إصلاح جديد» (name and phone
+already filled) are in the same section.
+
 ### ⭐ Special customers and who follows them
 
 - The tab الزبناء has a last column «نوع الزبون (0 عادي، 1 خاص)»: **0** = normal

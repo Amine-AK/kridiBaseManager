@@ -112,12 +112,12 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Task / feature | File(s) |
 |---|---|
 | App shell, main tabs (الكريدي / البيع / المخزون / الإصلاح / الكناش (every account, stock role too; badge = open customer requests) = sub-tabs الإصلاح + خدمة الشركة, `REPAIR_TABS`, with the count of late requests / الميزانية = sub-tabs الصندوق + التقارير, `BUDGET_TABS`), approvals bar in الكريدي, ⏳ on customers with waiting changes, customer list (phone: `ClientRow` lines, PC: `ClientCard` cards, switch `useIsPhone` < 640 px), search | `components/Dashboard.tsx` (`VIEWS`) |
-| Customer page (purchases, payments, delete; «🏭 ريكلاماسيون» and the open-request flag on purchases; banner of sellers' waiting changes / notes / refusals, ⏳ rows, owner can't edit them until deciding) | `components/ClientDetail.tsx` |
+| Customer page (purchases, payments, delete; section «🔧 الإصلاح وخدمة الشركة»: their after-sales requests and repairs (`customerFollowUps`: by account or any of their numbers), opened in place (`ClaimPanel`, `RepairPanel`), «🏭 ريكلاماسيون» and «🔧 إصلاح جديد» (prefilled `RepairForm initial`); the open-request flag on purchases; banner of sellers' waiting changes / notes / refusals, ⏳ rows, owner can't edit them until deciding) | `components/ClientDetail.tsx` |
 | Add / edit customer, instalment (الطريطة) | `components/ClientForms.tsx` |
 | Add purchase, record / edit payment (split hint, next due date) | `components/MoneyForms.tsx` |
 | Payment receipt, statement (كشف), WhatsApp message texts | `lib/receipt.ts` (texts) + `components/ReceiptDialog.tsx` (screen / print) |
 | WhatsApp reminders (WATI) | `components/RemindersDialog.tsx`, `app/api/reminders/*`, `lib/wati.ts`, `lib/reminders.ts` |
-| Sale (cart, cash / credit, scan into sale) | `components/SaleForm.tsx`; cash ticket `components/SaleTicket.tsx` |
+| Sale (cart, cash / credit, scan into sale). Sticky `.sale-top` (search + 📷 + category chips `.cat-strip`); a chip opens the category's full-screen page (`SaleCategoryPage`: `Modal` with `head` = category menu, class `page`; scoped search, filters الكل / متوفر / جديد / مستعمل, product grid drawn 48 at a time, 🛒 count on cards, cart bar). «عطاك»: `quickCash` chips, `cashOutcome` (change / exact / short → «📒 الباقي كريدي» = credit with the cash as advance); credit advance ≥ total → «💵 سجلها بيع كاش» | `components/SaleForm.tsx`, `components/SaleCategoryPage.tsx`, `lib/sale-browse.ts` (pure, tested); cash ticket `components/SaleTicket.tsx` |
 | Stock list, product form (codes, barcode popup), quantity ±, unknown scanned code, category chips | `components/StockView.tsx` (StockForm, AdjustForm, UnknownCode inside) |
 | Product families (categories) | `components/CategoryForm.tsx`, `components/CategoryIcon.tsx`, `lib/image.ts` |
 | Stock search, cash drawer math, reports math | `lib/shop.ts` |
@@ -147,7 +147,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Excel backup (every tab except users; each cell kept under Excel's 32 767 chars by `fitCell`, so pictures stay ≤ 32 000: `MAX_PHOTO_LENGTH`) | `lib/xlsx.ts`, `lib/backup.ts`, `components/BackupDialog.tsx`, `app/api/export` |
 | Archive (old customers) | `components/ArchiveView.tsx`, `app/api/archive/*`, `lib/store.ts` |
 | Sheets API client / env vars | `lib/sheets.ts`, `lib/env.ts` |
-| Modals (full screen on phones, back button) | `components/Modal.tsx`; shared bits `components/ui.tsx` (`Field`, `Confirm`, `parseAmount`) |
+| Modals (full screen on phones, back button; optional `head` replaces the title, `className="page"` = full screen on PC too) | `components/Modal.tsx`; shared bits `components/ui.tsx` (`Field`, `Confirm`, `parseAmount`) |
 | All styles | `src/app/globals.css` (one file, sections by feature; search the class name) |
 | DEV ONLY reset | `lib/dev-reset.ts`, `components/DevReset.tsx`, `app/api/dev/reset` |
 

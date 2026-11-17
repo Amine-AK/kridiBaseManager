@@ -18,6 +18,8 @@ import { fixAzertyDigits } from "@/lib/scanner-input";
 import { can, newClientType } from "@/lib/roles";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { CategoryIcon } from "./CategoryIcon";
+import { SaleCategoryPage } from "./SaleCategoryPage";
+import { cashOutcome, quickCash } from "@/lib/sale-browse";
 import { useScannerInput } from "./useScannerInput";
 import type { LedgerState } from "./useLedger";
 import { ClientPicker, Field, parseAmount } from "./ui";
@@ -70,8 +72,8 @@ export function SaleForm({
   const [type, setType] = useState<SaleType>(lockedClientId ? "كريدي" : types.includes(initialType) ? initialType : (types[0] ?? initialType));
   const [query, setQuery] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
-  /** Family chosen with the big buttons: its products are listed. */
-  const [cat, setCat] = useState("");
+  /** The category whose page is open over the screen ("" = none). */
+  const [page, setPage] = useState("");
   const [error, setError] = useState("");
   // Cash
   const [given, setGiven] = useState("");
@@ -89,26 +91,25 @@ export function SaleForm({
   const formRef = useRef<HTMLFormElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const results = useMemo(
-    () => searchStock(ledger.stock, query, 60).filter((s) => !cat || s.category === cat).slice(0, 12),
-    [ledger.stock, query, cat],
-  );
-  // Before anything is typed: the chosen family, or what sells most.
+  const results = useMemo(() => searchStock(ledger.stock, query, 12), [ledger.stock, query]);
+  // Before anything is typed: what sells most.
   const browse = useMemo(() => {
     const sold = new Map<string, number>();
     for (const s of ledger.sales) if (s.stockId) sold.set(s.stockId, (sold.get(s.stockId) ?? 0) + s.quantity);
     return ledger.stock
-      .filter((s) => (cat ? s.category === cat : s.quantity > 0))
-      .sort((a, b) => Number(b.quantity > 0) - Number(a.quantity > 0) || (sold.get(b.id) ?? 0) - (sold.get(a.id) ?? 0) || a.item.localeCompare(b.item, "ar"))
-      .slice(0, cat ? 40 : 8);
-  }, [ledger.stock, ledger.sales, cat]);
+      .filter((s) => s.quantity > 0)
+      .sort((a, b) => (sold.get(b.id) ?? 0) - (sold.get(a.id) ?? 0) || a.item.localeCompare(b.item, "ar"))
+      .slice(0, 8);
+  }, [ledger.stock, ledger.sales]);
   const shown = query.trim() ? results : browse;
   const inStock = useMemo(() => {
     const m = new Map<string, number>();
     for (const s of ledger.stock) if (s.quantity > 0) m.set(s.category, (m.get(s.category) ?? 0) + 1);
     return m;
   }, [ledger.stock]);
-  const listOpen = open || cat !== "";
+  const listOpen = open;
+  // Units of each stock product in the sale (shown on the category page).
+  const inCart = useMemo(() => new Map(lines.filter((l) => l.stockId).map((l) => [l.stockId, l.qty])), [lines]);
   const categories = ledger.categories;
   const summary = data.summaries.find((s) => s.client.id === clientId);
 
@@ -120,6 +121,26 @@ export function SaleForm({
   const listTotal = round2(lines.reduce((s, l) => s + l.unitList * l.qty, 0));
   const advanceAmount = parseAmount(advance || "0");
   const givenAmount = parseAmount(given || "0");
+  const cash = cashOutcome(total, givenAmount);
+  const canCredit = can(data.me, "sell_credit") && !lockedClientId;
+  const canCash = can(data.me, "sell_cash") && !lockedClientId;
+
+  /** Cash given is short: the rest goes on a customer's account, what was given is the advance. */
+  function restOnCredit() {
+    setType("كريدي");
+    setAdvance(given);
+    setGiven("");
+    setError("");
+    setTimeout(() => document.getElementById("sale-client")?.focus(), 0);
+  }
+
+  /** The advance covers it all: it's a cash sale, the advance is what was given. */
+  function allPaidCash() {
+    setType("كاش");
+    setGiven(advance);
+    setAdvance("");
+    setError("");
+  }
 
   function addStock(s: StockItem) {
     setLines((ls) => {
@@ -133,7 +154,6 @@ export function SaleForm({
     setQuery("");
     setError("");
     setOpen(false);
-    setCat("");
   }
 
   /** A code from the camera or a USB scanner: the product goes in the sale. */
@@ -150,7 +170,6 @@ export function SaleForm({
     setQuery("");
     setError("");
     setOpen(false);
-    setCat("");
   }
 
   const update = (key: string, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -332,25 +351,8 @@ export function SaleForm({
         </section>
       )}
 
-      <div className="cat-tiles" role="group" aria-label="الأصناف">
-        {ledger.categories.map((c) => (
-          <button
-            key={c.name}
-            type="button"
-            className={`cat-tile ${cat === c.name ? "on" : ""}`}
-            aria-pressed={cat === c.name}
-            onClick={() => {
-              setCat((x) => (x === c.name ? "" : c.name));
-              setQuery("");
-            }}
-          >
-            <CategoryIcon category={c} className="cat-icon" />
-            <span className="cat-name">{c.name}</span>
-            <span className="cat-count">{inStock.get(c.name) ?? 0} متوفر</span>
-          </button>
-        ))}
-      </div>
-
+      {/* Stays at the top while the cart scrolls: search, scan, and the categories. */}
+      <div className="sale-top">
       <div className="product-search">
         <label className="visually-hidden" htmlFor="sale-search">
           قلب على سلعة
@@ -361,7 +363,7 @@ export function SaleForm({
           id="sale-search"
           type="search"
           className="search"
-          placeholder={cat ? `قلب فـ ${cat}…` : "🔍 قلب على سلعة: ip 11، شارجور، ثلاجة…"}
+          placeholder="🔍 قلب على سلعة: ip 11، شارجور، ثلاجة…"
           value={query}
           autoComplete="off"
           role="combobox"
@@ -374,10 +376,7 @@ export function SaleForm({
             setOpen(true);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setCat("");
-              return setOpen(false);
-            }
+            if (e.key === "Escape") return setOpen(false);
             if (e.key !== "Enter") return;
             e.preventDefault();
             // A USB / Bluetooth scanner types the code then Enter.
@@ -394,19 +393,7 @@ export function SaleForm({
         {listOpen && (
           // Keep the focus in the input while tapping a result.
           <ul id="sale-results" className="product-results" role="listbox" aria-label="السلع" onPointerDown={(e) => e.preventDefault()}>
-            {cat ? (
-              <li className="pr-head">
-                <strong>
-                  <CategoryIcon category={ledger.categories.find((x) => x.name === cat)} name={cat} className="pr-head-icon" /> {cat}
-                </strong>
-                <button type="button" className="icon-btn" aria-label="سد" onClick={() => setCat("")}>
-                  ✕
-                </button>
-              </li>
-            ) : (
-              !query.trim() && <li className="pr-hint muted small">{browse.length ? "الأكثر مبيعا · ولا كتب باش تقلب" : "المخزون خاوي · كتب سمية السلعة"}</li>
-            )}
-            {cat && !query.trim() && browse.length === 0 && <li className="pr-hint muted small">ما كاين حتى سلعة فهاد الصنف فالمخزون</li>}
+            {!query.trim() && <li className="pr-hint muted small">{browse.length ? "الأكثر مبيعا · ولا كتب باش تقلب" : "المخزون خاوي · كتب سمية السلعة"}</li>}
             {query.trim() && results.length === 0 && <li className="pr-hint muted small">ما كايناش فالمخزون</li>}
             {shown.map((s) => (
               <li key={s.id}>
@@ -426,20 +413,34 @@ export function SaleForm({
                 </button>
               </li>
             ))}
-            {(query.trim() || cat) && (
+            {query.trim() && (
               <li>
-                <button type="button" className="pr-free" onClick={() => addFree(query.trim(), cat)}>
-                  {query.trim() ? `＋ زيد «${query.trim()}» بلا مخزون` : `＋ حاجة أخرى فـ ${cat} (بلا مخزون)`}
+                <button type="button" className="pr-free" onClick={() => addFree(query.trim())}>
+                  ＋ زيد «{query.trim()}» بلا مخزون
                 </button>
               </li>
             )}
           </ul>
         )}
       </div>
+      {categories.length > 0 && (
+        <div className="cat-strip" role="group" aria-label="الأصناف: كل صنف فصفحة ديالو">
+          {categories.map((c) => (
+            <button key={c.name} type="button" className="cat-chip" onClick={() => setPage(c.name)}>
+              <CategoryIcon category={c} className="cat-chip-icon" />
+              <span>{c.name}</span>
+              <bdi dir="ltr" className="cat-chip-count">
+                {inStock.get(c.name) ?? 0}
+              </bdi>
+            </button>
+          ))}
+        </div>
+      )}
+      </div>
 
 
       {lines.length === 0 ? (
-        <p className="empty small">اختار صنف من الفوق ولا قلب على السلعة.</p>
+        <p className="empty small">قلب على السلعة، سكاني الكود، ولا حل صنف من الفوق.</p>
       ) : (
         <ul className="cart">
           {lines.map((l) => {
@@ -523,6 +524,14 @@ export function SaleForm({
           <Field id="sale-advance" label="التسبيق" hint="اللي خلص دابا (كيدخل للصندوق)">
             <input id="sale-advance" inputMode="decimal" dir="ltr" value={advance} onChange={(e) => setAdvance(e.target.value)} />
           </Field>
+          {total > 0 && advanceAmount >= total && canCash && (
+            <div className="alert info cash-switch">
+              <p>✓ خلص كلشي ({money(advanceAmount)}){advanceAmount > total ? ` · رد ليه ${money(round2(advanceAmount - total))}` : ""}. ما كاين حتى كريدي.</p>
+              <button type="button" className="btn small-btn" onClick={allPaidCash}>
+                💵 سجلها بيع كاش
+              </button>
+            </div>
+          )}
           {firstInstalment && total > 0 && (
             <div className="installment-hint first-instalment">
               <p className="form-section-title">الطريطة</p>
@@ -589,14 +598,40 @@ export function SaleForm({
             <label className="given">
               <span className="muted small">عطاك</span>
               <input inputMode="decimal" dir="ltr" placeholder="—" value={given} onChange={(e) => setGiven(e.target.value)} />
-              {givenAmount > 0 && total > 0 && (
-                <span className={givenAmount >= total ? "ok-text" : "danger-text"}>
-                  {givenAmount >= total ? `رد ليه ${money(round2(givenAmount - total))}` : `ناقص ${money(round2(total - givenAmount))}`}
-                </span>
-              )}
             </label>
           )}
         </div>
+        {type === "كاش" && total > 0 && (
+          <div className="given-tools">
+            <div className="chips given-chips" role="group" aria-label="شحال عطاك">
+              {quickCash(total).map((x, i) => (
+                <button key={x} type="button" className={`chip ${givenAmount === x ? "on" : ""}`} aria-pressed={givenAmount === x} onClick={() => setGiven(String(x))}>
+                  {i === 0 ? "✓ المبلغ كامل" : <bdi dir="ltr">{x}</bdi>}
+                </button>
+              ))}
+            </div>
+            {cash.kind === "exact" && <p className="given-result ok-text">✓ خالص</p>}
+            {cash.kind === "change" && (
+              <p className="given-result ok-text">
+                🔁 رد ليه <strong>{money(cash.change)}</strong>
+              </p>
+            )}
+            {cash.kind === "short" && (
+              <div className="given-result short">
+                <p className="danger-text">
+                  ناقص <strong>{money(cash.short)}</strong>
+                </p>
+                {canCredit ? (
+                  <button type="button" className="btn small-btn" onClick={restOnCredit}>
+                    📒 الباقي ({money(cash.short)}) كريدي على زبون
+                  </button>
+                ) : (
+                  <span className="muted small">ما عندكش البيع بالكريدي: خاصو يكمل الخلاص.</span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         {error && (
           <p className="alert error" role="alert">
             {error}
@@ -607,6 +642,22 @@ export function SaleForm({
         </button>
       </div>
     </form>
+    {page && (
+      <SaleCategoryPage
+        data={data}
+        category={page}
+        onCategory={setPage}
+        inCart={inCart}
+        cartCount={lines.reduce((t, l) => t + l.qty, 0)}
+        cartTotal={total}
+        onAdd={addStock}
+        onFree={(c) => {
+          addFree("", c);
+          setPage("");
+        }}
+        onClose={() => setPage("")}
+      />
+    )}
     {scanning && (
       <BarcodeScanner
         title="📷 سكاني السلعة"

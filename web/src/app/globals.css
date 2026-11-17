@@ -1239,3 +1239,78 @@ a.btn { text-decoration: none; }
 /* Special customers (type 1, column «نوع الزبون»). */
 .special-star { margin-inline-start: 4px; font-size: 13px; }
 .pill.special { background: var(--warn-soft); color: var(--warn); }
+
+/* Sale: search + scan + categories stay at the top while the cart scrolls (SaleForm.tsx). */
+.sale-top {
+  position: sticky; top: 64px; z-index: 4; display: grid; gap: 8px;
+  margin-inline: -4px; padding: 6px 4px 8px; background: var(--bg);
+}
+@media (max-width: 640px) { .sale-top { top: 0; margin-inline: -16px; padding-inline: 16px; border-bottom: 1px solid var(--line); } }
+.sale-top .product-results { position: absolute; inset-inline: 0; top: 100%; z-index: 5; max-height: min(55vh, 420px); }
+.cat-strip { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.cat-strip::-webkit-scrollbar { display: none; }
+.cat-chip {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.cat-chip:hover { border-color: var(--accent); }
+.cat-chip-icon { font-size: 18px; line-height: 1; }
+.cat-img.cat-chip-icon { width: 22px; height: 22px; border-radius: 5px; }
+.cat-chip-count { font-size: 12px; color: var(--muted); }
+
+/* A category's page (SaleCategoryPage.tsx): full screen, category menu instead of the title. */
+.modal.page { width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; background: var(--bg); }
+.modal.page .modal-inner { height: 100dvh; max-height: 100dvh; }
+.modal.page .modal-head { justify-content: flex-start; gap: 6px; background: var(--surface); }
+.modal.page .modal-close { order: -1; }
+.modal.page .modal-close .on-wide { display: none; }
+.modal.page .modal-close .on-phone { display: inline; }
+.modal.page .modal-body { width: 100%; max-width: 1100px; margin-inline: auto; }
+.modal.page .modal-foot { justify-content: center; }
+.cat-switch-wrap { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 520px; }
+.cat-switch-icon { font-size: 22px; line-height: 1; flex: none; }
+.cat-img.cat-switch-icon { width: 28px; height: 28px; border-radius: 6px; }
+.cat-switch {
+  flex: 1; min-width: 0; min-height: 42px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 17px; font-weight: 700;
+}
+.cat-page-tools { position: sticky; top: -16px; z-index: 2; display: grid; gap: 8px; margin: -16px -16px 0; padding: 12px 16px 8px; background: var(--bg); }
+.cat-page-count { margin-inline-start: auto; align-self: center; }
+.cat-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+@media (max-width: 640px) { .cat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cat-card {
+  position: relative; width: 100%; height: 100%; min-height: 108px; display: grid; align-content: start; gap: 4px; padding: 10px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit; text-align: start; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cat-card:hover { border-color: var(--accent); }
+.cat-card.out { opacity: 0.6; }
+.cat-card.flash { border-color: var(--accent); background: var(--accent-soft); }
+.cat-card.free { border-style: dashed; align-content: center; color: var(--accent); }
+.cat-card-name { font-size: 15px; overflow-wrap: anywhere; padding-inline-end: 36px; }
+.cat-card-sub { overflow-wrap: anywhere; }
+.cat-card-price { font-size: 17px; font-weight: 700; margin-top: auto; }
+.cat-card .stock-badge { justify-self: start; }
+.cat-card-cart { position: absolute; top: 6px; inset-inline-end: 6px; padding: 1px 7px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; }
+.cat-more { grid-column: 1 / -1; text-align: center; padding: 10px; }
+.cat-page-done { min-height: 50px; font-size: 16px; max-width: 520px; }
+
+/* عطاك: amounts the customer likely hands over, change, short → rest on credit. */
+.given-tools { display: grid; gap: 6px; }
+.given-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.given-chips .chip { flex: none; }
+.given-result { margin: 0; font-size: 16px; }
+.given-result.short { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.given-result.short p { margin: 0; }
+.cash-switch { justify-items: start; }
+.cash-switch p { margin: 0; }
+/* Customer page: their repairs and after-sales requests (ClientDetail.tsx). */
+.follow-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.follow-head h3 { margin: 0; }
+.follow-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.follow-rows > li { padding: 0; }
+.follow-open {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px;
+  border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; border-radius: 10px;
+}
+.follow-open:hover { background: var(--surface-2); }

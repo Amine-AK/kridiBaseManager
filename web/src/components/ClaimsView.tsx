@@ -177,6 +177,45 @@ export function ClaimsView({ data, onToast }: { data: LedgerState; onToast: (msg
   );
 }
 
+/** One request opened from elsewhere (a customer's page): its detail, edit and delete. */
+export function ClaimPanel({ data, claimId, onClose, onToast }: { data: LedgerState; claimId: string; onClose: () => void; onToast: (msg: string) => void }) {
+  const now = useNow();
+  const [mode, setMode] = useState<"open" | "edit" | "delete">("open");
+  const claim = data.ledger!.claims.find((c) => c.id === claimId);
+  if (!claim) return null;
+  if (mode === "edit") {
+    return (
+      <ClaimForm
+        data={data}
+        claim={claim}
+        onClose={() => setMode("open")}
+        onSaved={() => {
+          onToast("تبدل الطلب");
+          setMode("open");
+        }}
+      />
+    );
+  }
+  if (mode === "delete") {
+    return (
+      <Confirm
+        title="حذف الطلب"
+        confirmLabel="حذف"
+        danger
+        onClose={() => setMode("open")}
+        onConfirm={() => {
+          data.run(`حذف طلب · ${claim.item}`, { type: "claim.delete", id: claim.id });
+          onToast("تحذف الطلب");
+          onClose();
+        }}
+      >
+        <p className="lead">نحيدو هاد الطلب من اللائحة؟</p>
+      </Confirm>
+    );
+  }
+  return <ClaimDetail data={data} claim={claim} now={now} onClose={onClose} onEdit={() => setMode("edit")} onDelete={() => setMode("delete")} onToast={onToast} />;
+}
+
 /** «⏰ معطل» when late, else the status. */
 export function ClaimBadge({ claim: c, now }: { claim: Claim; now: Date }) {
   if (isLate(c, now)) return <span className="repair-status tone-bad">⏰ معطل</span>;
