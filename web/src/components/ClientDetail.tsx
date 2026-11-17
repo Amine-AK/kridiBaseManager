@@ -13,7 +13,11 @@ import { ReceiptDialog } from "./ReceiptDialog";
 import type { LedgerState } from "./useLedger";
 import { can } from "@/lib/roles";
 import { Confirm } from "./ui";
-import { ClaimForm, useNow } from "./ClaimsView";
+import { ClaimBadge, ClaimForm, ClaimPanel, useNow } from "./ClaimsView";
+import { RepairForm, RepairPanel } from "./RepairsView";
+import { customerFollowUps } from "@/lib/sale-browse";
+import { isOpen as claimOpen, sinceText } from "@/lib/claims";
+import { repairRemaining, STATUS_INFO as REPAIR_STATUS } from "@/lib/repairs";
 import { isLate, openClaimFor } from "@/lib/claims";
 import { waitingByClient } from "@/lib/approvals";
 import { ApprovalsDialog, recentOwnerNotes, recentRefusals } from "./ApprovalsView";
@@ -31,6 +35,9 @@ type Sub =
   | { kind: "delete-client" }
   | { kind: "archive" }
   | { kind: "claim" }
+  | { kind: "claim-open"; id: string }
+  | { kind: "repair-new" }
+  | { kind: "repair-open"; id: string; justAdded?: boolean }
   | { kind: "approvals" }
   | null;
 
@@ -52,6 +59,11 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
   const owner = data.me?.role === "owner";
   const waiting = data.ledger ? (waitingByClient(data.ledger).get(c.id) ?? []) : [];
   const refused = data.ledger ? recentRefusals(data.ledger.approvals).filter((a) => describeRequest(a.op, data.ledger!).clientId === c.id) : [];
+  // Their after-sales requests and repairs, followed from here (no need to go to الإصلاح).
+  const follow = data.ledger ? customerFollowUps(c, data.ledger) : { claims: [], repairs: [] };
+  const seesClaims = allow("claims");
+  const seesRepairs = allow("repairs");
+  const followCount = (seesClaims ? follow.claims.length : 0) + (seesRepairs ? follow.repairs.length : 0);
   const ownerNotes = data.ledger ? recentOwnerNotes(data.ledger.approvals).filter((a) => describeRequest(a.op, data.ledger!).clientId === c.id) : [];
   const newWaiting = waiting.some((a) => a.op.type === "client.add");
   // The owner decides first: an edit of a record a seller changed would be refused by the sheet.
@@ -191,11 +203,7 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
             تعديل المعلومات
           </button>
           )}
-          {allow("claims") && (
-          <button type="button" className="btn" onClick={() => setSub({ kind: "claim" })} title="سلعة فيها عطب: صيفط طلب لخدمة الصيانة ديال الشركة">
-            🏭 ريكلاماسيون
-          </button>
-          )}
+
         </div>
 
         <section className="detail-section" aria-label="المشتريات">
@@ -270,6 +278,61 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
             ))}
           </ul>
         </section>
+
+        {(seesClaims || seesRepairs) && (
+          <section className="detail-section follow-section" aria-label="الإصلاح وخدمة الشركة">
+            <div className="follow-head">
+              <h3>🔧 الإصلاح وخدمة الشركة{followCount ? ` (${followCount})` : ""}</h3>
+              <div className="follow-actions">
+                {seesClaims && (
+                  <button type="button" className="btn small-btn" onClick={() => setSub({ kind: "claim" })} title="سلعة فيها عطب: صيفط طلب لخدمة الصيانة ديال الشركة">
+                    🏭 ريكلاماسيون
+                  </button>
+                )}
+                {seesRepairs && (
+                  <button type="button" className="btn small-btn" onClick={() => setSub({ kind: "repair-new" })}>
+                    🔧 إصلاح جديد
+                  </button>
+                )}
+              </div>
+            </div>
+            {followCount === 0 && <p className="muted small">ما عندو حتى إصلاح ولا طلب عند الشركة.</p>}
+            <ul className="rows follow-rows">
+              {seesClaims &&
+                follow.claims.map((x) => (
+                  <li key={x.id}>
+                    <button type="button" className="follow-open" onClick={() => setSub({ kind: "claim-open", id: x.id })}>
+                      <span className="row-main">
+                        <strong>🏭 {x.item}</strong>
+                        <span className="muted small">
+                          {x.company} · {claimOpen(x) ? `هادي ${sinceText(x.createdAt, now)}` : <bdi dir="ltr">{displayDate(x.resolvedDate)}</bdi>}
+                          {x.reminders > 0 && ` · 🔔 ${x.reminders}`}
+                        </span>
+                      </span>
+                      <ClaimBadge claim={x} now={now} />
+                    </button>
+                  </li>
+                ))}
+              {seesRepairs &&
+                follow.repairs.map((r) => (
+                  <li key={r.id}>
+                    <button type="button" className="follow-open" onClick={() => setSub({ kind: "repair-open", id: r.id })}>
+                      <span className="row-main">
+                        <strong>🔧 {r.device}</strong>
+                        <span className="muted small">
+                          <bdi dir="ltr">{displayDate(r.date)}</bdi>
+                          {r.price > 0 && ` · ${repairRemaining(r) > 0 ? `باقي ${money(repairRemaining(r))}` : "خالص"}`}
+                        </span>
+                      </span>
+                      <span className={`repair-status tone-${REPAIR_STATUS[r.status].tone}`}>
+                        {REPAIR_STATUS[r.status].icon} {r.status}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        )}
 
         {data.ledger && data.ledger.changes.some((x) => x.clientId === c.id) && (
           <section className="detail-section" aria-label="تغييرات الطريطة">
@@ -387,6 +450,19 @@ export function ClientDetail({ data, clientId, onClose, onToast }: { data: Ledge
         />
       )}
       {sub?.kind === "approvals" && <ApprovalsDialog data={data} clientId={c.id} onClose={() => setSub(null)} onToast={onToast} />}
+      {sub?.kind === "claim-open" && <ClaimPanel data={data} claimId={sub.id} onClose={() => setSub(null)} onToast={onToast} />}
+      {sub?.kind === "repair-open" && <RepairPanel data={data} repairId={sub.id} justAdded={sub.justAdded} onClose={() => setSub(null)} onToast={onToast} />}
+      {sub?.kind === "repair-new" && (
+        <RepairForm
+          data={data}
+          initial={{ owner: c.name, phone: c.phone }}
+          onClose={() => setSub(null)}
+          onSaved={(id) => {
+            onToast("تسجل الجهاز");
+            setSub({ kind: "repair-open", id, justAdded: true });
+          }}
+        />
+      )}
       {sub?.kind === "claim" && (
         <ClaimForm
           data={data}
