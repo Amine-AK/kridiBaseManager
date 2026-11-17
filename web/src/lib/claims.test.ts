@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimMessage, isLate, lateClaims, openClaimFor, parseContacts, reminderMessage, searchClaims, sinceText, soldItems } from "./claims";
+import { claimsByClient, claimMessage, isLate, lateClaims, openClaimFor, parseContacts, reminderMessage, searchClaims, sinceText, soldItems } from "./claims";
 import { applyOp, emptyLedger, type Claim, type LedgerOp } from "./ledger";
 import { opAllowed, ledgerFor } from "./permissions";
 import type { Me } from "./roles";
@@ -126,5 +126,21 @@ describe("ops and permissions", () => {
     const ledger = { ...emptyLedger(), claims: [claim()] };
     expect(ledgerFor(seller(["repairs"]), ledger).claims).toHaveLength(0);
     expect(ledgerFor(seller(["claims"]), ledger).claims).toHaveLength(1);
+  });
+});
+
+describe("requests per customer (badge in الكريدي)", () => {
+  it("counts open and late requests by account or by number", () => {
+    const clients = [{ id: "C-1", phone: "0661234567" }, { id: "C-2", phone: "0700000000", phones: ["0611111111"] }];
+    const list = [
+      claim({ id: "W-1", clientId: "C-1" }),
+      claim({ id: "W-2", clientId: "", phone: "+212 611 11 11 11", lastSentAt: "2026-11-12T09:00:00.000Z" }),
+      claim({ id: "W-3", clientId: "C-1", status: "تحل", resolvedDate: "2026-11-11" }),
+      claim({ id: "W-4", clientId: "", phone: "0699999999" }),
+    ];
+    const m = claimsByClient(clients, list, at("2026-11-13T10:00:00Z"));
+    expect(m.get("C-1")).toEqual({ open: 1, late: 1 });
+    expect(m.get("C-2")).toEqual({ open: 1, late: 0 });
+    expect(m.size).toBe(2);
   });
 });
