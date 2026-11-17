@@ -473,6 +473,14 @@ A main tab that looks like the paper notebook next to the till, for every accoun
   زبون» turns the sale into a credit sale with what was given as the advance. In a
   credit sale, an advance that covers everything offers «💵 سجلها بيع كاش».
 
+### 🏭 After-sales requests in الكريدي
+
+For accounts with «🏭 خدمة الشركة», the الكريدي page shows the requests to the brands
+like the late payers: a card next to «متأخرين» with the open requests; when some
+passed 48 hours it turns red («⏰ عند الشركة») and a red bar says how many, with
+«شوف ←». Both open the list of requests (late ones first) over the screen. In the
+customer list, ⏰ marks a customer with a late request, 🏭 one with an open request.
+
 ### 🔧 A customer's repairs and after-sales requests on their page
 
 In الكريدي, the customer's page has «🔧 الإصلاح وخدمة الشركة»: their requests to the

@@ -3,7 +3,8 @@
 // followed here; after 48 hours without a solution it is late and the shop
 // reminds them. Pure rules, shared by the screens and the tests.
 
-import { SERVICE_CONTACTS_KEY, type Claim, type ClaimStatus, type Ledger, type Setting } from "./ledger";
+import { clientPhones, SERVICE_CONTACTS_KEY, type Claim, type ClaimStatus, type Client, type Ledger, type Setting } from "./ledger";
+import { formatMoroccoPhone, isValidPhone } from "./sheet-logic";
 import { displayDate, displayDateTime, SHOP } from "./receipt";
 import { normalizeText } from "./shop";
 
@@ -168,4 +169,33 @@ export function reminderMessage(c: Told & Pick<Claim, "date" | "time" | "created
     `🏪 ${SHOP.name}`,
     `📞 ${SHOP.phone}`,
   ].join("\n");
+}
+
+/**
+ * Open after-sales requests per customer (by account, or by one of their
+ * numbers for a request typed by hand), with how many are late: the badge on
+ * the customer list in الكريدي.
+ */
+export function claimsByClient(
+  clients: Pick<Client, "id" | "phone" | "phones">[],
+  claims: Claim[],
+  now = new Date(),
+): Map<string, { open: number; late: number }> {
+  const byPhone = new Map<string, string>();
+  for (const c of clients) for (const p of clientPhones(c)) {
+    const intl = formatMoroccoPhone(p);
+    if (isValidPhone(intl) && !byPhone.has(intl)) byPhone.set(intl, c.id);
+  }
+  const known = new Set(clients.map((c) => c.id));
+  const out = new Map<string, { open: number; late: number }>();
+  for (const x of claims) {
+    if (!isOpen(x)) continue;
+    const id = known.has(x.clientId) ? x.clientId : byPhone.get(formatMoroccoPhone(x.phone));
+    if (!id) continue;
+    const v = out.get(id) ?? { open: 0, late: 0 };
+    v.open++;
+    if (isLate(x, now)) v.late++;
+    out.set(id, v);
+  }
+  return out;
 }

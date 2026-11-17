@@ -21,10 +21,11 @@ import { SaleTicketDialog } from "./SaleTicket";
 import { StockView } from "./StockView";
 import { RepairsView } from "./RepairsView";
 import { NotesView } from "./NotesView";
+import { Modal } from "./Modal";
 import { useNoteAlerts } from "./useNoteAlerts";
 import { isOpenRequest } from "@/lib/notes";
 import { ClaimsView, ServiceContactsDialog, useNow } from "./ClaimsView";
-import { lateClaims } from "@/lib/claims";
+import { claimsByClient, isOpen as claimOpen, lateClaims } from "@/lib/claims";
 import { ApprovalsBar, ApprovalsDialog } from "./ApprovalsView";
 import { waitingByClient } from "@/lib/approvals";
 import { ClientDetail } from "./ClientDetail";
@@ -79,6 +80,7 @@ type Dialog =
   | { kind: "users" }
   | { kind: "contacts" }
   | { kind: "approvals" }
+  | { kind: "claims" }
   | null;
 
 type View = "credit" | "sell" | "stock" | "repairs" | "budget" | "notes";
@@ -174,6 +176,9 @@ export function Dashboard() {
   const waiting = useMemo(() => (data.ledger ? waitingByClient(data.ledger) : new Map<string, unknown[]>()), [data.ledger]);
   // Requests to the brands' services still open 48 h after the last message (none for accounts without the service).
   const lateCount = lateClaims(data.ledger?.claims ?? [], now).length;
+  // After-sales requests in الكريدي: a card like «متأخرين», and a badge on each customer concerned.
+  const openClaims = (data.ledger?.claims ?? []).filter(claimOpen).length;
+  const claimsPerClient = useMemo(() => claimsByClient(data.ledger?.clients ?? [], data.ledger?.claims ?? [], now), [data.ledger, now]);
   // Customers' requests in the notebook not done yet.
   const openNotes = (data.ledger?.notes ?? []).filter(isOpenRequest).length;
   const allow = (p: Parameters<typeof can>[1]) => can(me, p);
@@ -421,7 +426,10 @@ export function Dashboard() {
         {current === "credit" && (
         <>
 
-        <section className="summary" aria-label="ملخص">
+        <section
+          className={`summary ${allow("claims") ? (me?.role === "owner" ? "four" : "trio") : ""}`}
+          aria-label="ملخص"
+        >
           {me?.role === "owner" && (
             <div className="stat">
               <span className="stat-label">
@@ -441,7 +449,27 @@ export function Dashboard() {
             <span className="stat-value">{summary.dueSoon}</span>
             <span className="stat-sub">خاصهم يخلصو</span>
           </div>
+          {allow("claims") && (
+            <button
+              type="button"
+              className={`stat claim-stat ${lateCount ? "alert-stat late" : ""}`}
+              onClick={() => setDialog({ kind: "claims" })}
+              aria-label={`خدمة الشركة: ${lateCount} معطلين، ${openClaims} مفتوحين`}
+            >
+              <span className="stat-label">{lateCount ? "⏰ عند الشركة" : "🏭 خدمة الشركة"}</span>
+              <span className="stat-value">{lateCount || openClaims}</span>
+              <span className="stat-sub">{lateCount ? `فاتو 48 ساعة · ${openClaims} مفتوحين` : openClaims ? "طلب مفتوح" : "ما كاين والو"}</span>
+            </button>
+          )}
         </section>
+        {lateCount > 0 && allow("claims") && (
+          <button type="button" className="claims-late-bar" onClick={() => setDialog({ kind: "claims" })}>
+            <span>
+              ⏰ <strong>{lateCount}</strong> {lateCount === 1 ? "طلب" : "طلبات"} عند الشركات فاتو 48 ساعة بلا حل. ذكّرهم باش يتصلو بالزبناء.
+            </span>
+            <span className="approvals-go">شوف ←</span>
+          </button>
+        )}
 
         <ApprovalsBar data={data} onOpen={() => setDialog({ kind: "approvals" })} />
 
@@ -598,6 +626,7 @@ export function Dashboard() {
                           s={s}
                           today={today}
                           waiting={waiting.get(s.client.id)?.length ?? 0}
+                          claims={allow("claims") ? claimsPerClient.get(s.client.id) : undefined}
                           onOpen={() => setDialog({ kind: "client", id: s.client.id })}
                           onPay={allow("payment") ? () => setDialog({ kind: "pay", id: s.client.id }) : undefined}
                         />
@@ -638,6 +667,11 @@ export function Dashboard() {
       )}
       {dialog?.kind === "sale-ticket" && data.ledger && (
         <SaleTicketDialog lines={data.ledger.sales.filter((x) => x.ticket === dialog.ticket)} notice="تسجل البيع ✓" onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "claims" && data.ledger && (
+        <Modal title="🏭 خدمة الشركة" className="page" onClose={() => setDialog(null)}>
+          <ClaimsView data={data} onToast={setToast} initialFilter={lateCount ? "late" : "open"} />
+        </Modal>
       )}
       {dialog?.kind === "approvals" && data.ledger && <ApprovalsDialog data={data} onClose={() => setDialog(null)} onToast={setToast} />}
       {dialog?.kind === "contacts" && data.ledger && <ServiceContactsDialog data={data} onClose={() => setDialog(null)} onToast={setToast} />}
@@ -688,7 +722,21 @@ function useIsPhone(): boolean {
  * next payment is due and what is still being paid, the amount owed, and a
  * quick «payment» button. Tap the line for the account.
  */
-function ClientRow({ s, today, waiting, onOpen, onPay }: { s: ClientSummary; today: string; waiting: number; onOpen: () => void; onPay?: () => void }) {
+/** «⏰ الشركة» (late) or «🏭» (open) after a customer's name: their requests at the brands' services. */
+function ClaimFlag({ claims, short }: { claims?: { open: number; late: number }; short?: boolean }) {
+  if (!claims?.open) return null;
+  return claims.late ? (
+    <span className="claim-flag late row-claim" title={`${claims.late} طلب عند الشركة فات 48 ساعة`} aria-label="طلب عند الشركة فات 48 ساعة">
+      {short ? "⏰" : "⏰ الشركة"}
+    </span>
+  ) : (
+    <span className="claim-flag row-claim" title={`${claims.open} طلب مفتوح عند الشركة`}>
+      🏭
+    </span>
+  );
+}
+
+function ClientRow({ s, today, waiting, claims, onOpen, onPay }: { s: ClientSummary; today: string; waiting: number; claims?: { open: number; late: number }; onOpen: () => void; onPay?: () => void }) {
   const c = s.client;
   const owes = s.remaining > 0;
   const unpaid = unpaidItems(s);
@@ -704,6 +752,7 @@ function ClientRow({ s, today, waiting, onOpen, onPay }: { s: ClientSummary; tod
             {c.name}
             {c.type === 1 && <span className="special-star" title="زبون خاص">⭐</span>}
             {waiting > 0 && <span className="pending-dot" title={`${waiting} تعديل كيتسنى موافقة المالك`}>⏳</span>}
+            <ClaimFlag claims={claims} short />
           </span>
           <span className="row-sub">
             <span className="row-due">{due}</span>
@@ -742,7 +791,7 @@ function initial(name: string): string {
   return Array.from(name.trim())[0]?.toUpperCase() ?? "؟";
 }
 
-function ClientCard({ s, today, waiting, onOpen, onPay }: { s: ClientSummary; today: string; waiting: number; onOpen: () => void; onPay?: () => void }) {
+function ClientCard({ s, today, waiting, claims, onOpen, onPay }: { s: ClientSummary; today: string; waiting: number; claims?: { open: number; late: number }; onOpen: () => void; onPay?: () => void }) {
   const c = s.client;
   const unpaid = unpaidItems(s);
   return (
@@ -754,6 +803,7 @@ function ClientCard({ s, today, waiting, onOpen, onPay }: { s: ClientSummary; to
               {c.name}
               {c.type === 1 && <span className="special-star" title="زبون خاص">⭐</span>}
               {waiting > 0 && <span className="pending-dot" title={`${waiting} تعديل كيتسنى موافقة المالك`}>⏳</span>}
+              <ClaimFlag claims={claims} />
             </h3>
             {c.phone && (
               <span className="phone" dir="ltr">

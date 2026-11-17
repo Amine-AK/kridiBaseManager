@@ -47,11 +47,11 @@ export function useNow(): Date {
  * خدمة الشركة: requests sent to the brands' after-sales services for products
  * we sold. Late ones (48 h without a solution) come first, with a reminder button.
  */
-export function ClaimsView({ data, onToast }: { data: LedgerState; onToast: (msg: string) => void }) {
+export function ClaimsView({ data, onToast, initialFilter = "open" }: { data: LedgerState; onToast: (msg: string) => void; initialFilter?: Filter }) {
   const claims = data.ledger!.claims;
   const now = useNow();
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("open");
+  const [filter, setFilter] = useState<Filter>(initialFilter);
   const [sub, setSub] = useState<Sub>(null);
 
   const late = lateClaims(claims, now);
