@@ -423,24 +423,25 @@ export function SaleForm({
           </ul>
         )}
       </div>
+      </div>
+
+
+
+      {/* The big family buttons (as before); each opens its own page. */}
       {categories.length > 0 && (
-        <div className="cat-strip" role="group" aria-label="الأصناف: كل صنف فصفحة ديالو">
+        <div className="cat-tiles" role="group" aria-label="الأصناف: كل صنف فصفحة ديالو">
           {categories.map((c) => (
-            <button key={c.name} type="button" className="cat-chip" onClick={() => setPage(c.name)}>
-              <CategoryIcon category={c} className="cat-chip-icon" />
-              <span>{c.name}</span>
-              <bdi dir="ltr" className="cat-chip-count">
-                {inStock.get(c.name) ?? 0}
-              </bdi>
+            <button key={c.name} type="button" className="cat-tile" onClick={() => setPage(c.name)}>
+              <CategoryIcon category={c} className="cat-icon" />
+              <span className="cat-name">{c.name}</span>
+              <span className="cat-count">{inStock.get(c.name) ?? 0} متوفر</span>
             </button>
           ))}
         </div>
       )}
-      </div>
-
 
       {lines.length === 0 ? (
-        <p className="empty small">قلب على السلعة، سكاني الكود، ولا حل صنف من الفوق.</p>
+        <p className="empty small">قلب على السلعة، سكاني الكود، ولا اختار صنف من الفوق.</p>
       ) : (
         <ul className="cart">
           {lines.map((l) => {
