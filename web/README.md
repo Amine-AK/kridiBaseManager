@@ -461,7 +461,8 @@ A main tab that looks like the paper notebook next to the till, for every accoun
 
 ### 🛒 Faster sale screen
 
-- The search, 📷 and a row of categories stay at the top while the cart scrolls.
+- The search and 📷 stay at the top while the page scrolls; the big category
+  buttons are under them, as before.
 - A category opens its own full-screen page (no app header): a menu at the top to
   switch category, a search that stays in the category, filters «✅ متوفر», «جديد»,
   «مستعمل», and the products as cards (in stock and best sellers first). Tapping a
