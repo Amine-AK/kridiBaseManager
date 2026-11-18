@@ -19,6 +19,8 @@ interface Props {
   onUsers?: () => void;
   /** Accounts that follow the brands' after-sales requests: their services' numbers (خدمة العملاء). */
   onContacts?: () => void;
+  /** Accounts that send reminders: the reminders' written texts and voice messages. */
+  onReminderTexts?: () => void;
   /** DEV ONLY: show «مسح جميع المعلومات». */
   devReset?: boolean;
   onDevReset?: () => void;
@@ -28,7 +30,7 @@ interface Props {
 }
 
 /** ⚙️ in the header: Excel backup, theme and logout. */
-export function TopMenu({ online, me, canBackup, onUsers, onContacts, devReset, onDevReset, onSendBackup, onLogout, onToast }: Props) {
+export function TopMenu({ online, me, canBackup, onUsers, onContacts, onReminderTexts, devReset, onDevReset, onSendBackup, onLogout, onToast }: Props) {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>("system");
   const [downloading, setDownloading] = useState(false);
@@ -97,9 +99,23 @@ export function TopMenu({ online, me, canBackup, onUsers, onContacts, devReset, 
               <hr />
             </>
           )}
+          {(onContacts || onReminderTexts) && <p className="menu-label">الإعدادات</p>}
+          {onReminderTexts && (
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              onClick={() => {
+                setOpen(false);
+                onReminderTexts();
+              }}
+            >
+              💬 رسائل التذكير
+            </button>
+          )}
+          {onReminderTexts && !onContacts && <hr />}
           {onContacts && (
             <>
-              <p className="menu-label">الإعدادات</p>
               <button
                 type="button"
                 role="menuitem"

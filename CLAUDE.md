@@ -40,7 +40,9 @@ reminders. Installable PWA, used on phones and the shop PC, works offline.
   `theme`, `label-setup`, `label-size`, `label-price`, `receipt-paper`,
   `scanner-camera`, `backup-last`, `backup-snooze`, `device-id`,
   `notes-seen` (account → ISO time الكناش was last looked at), `reminder-contacted`
-  (customer → day + how they were reminded by hand today),
+  (customer → day + how they were reminded by hand today), `reminder-template` / `reminder-audio`
+  (text and voice message chosen last in the reminders). IndexedDB also keeps `reminder-audios`
+  (voice messages recorded on the device, Blobs: too big for the sheet),
   `label-print-test` (old, migrated). The ledger snapshot and the queue of
   unsent ops are in IndexedDB (`ledger-snapshot`, `ledger-queue`).
   Per tab (`sessionStorage`): `view` (main tab), `budget-tab` (الصندوق / التقارير),
@@ -119,7 +121,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Add / edit customer, instalment (الطريطة) | `components/ClientForms.tsx` |
 | Add purchase, record / edit payment (split hint, next due date) | `components/MoneyForms.tsx` |
 | Payment receipt, statement (كشف), WhatsApp message texts | `lib/receipt.ts` (texts) + `components/ReceiptDialog.tsx` (screen / print) |
-| Reminders of late customers: one by one from the device data, no API, also offline (📞 `tel:`, 💬 `whatsappLink` + `reminderMessage` in `lib/receipt.ts`, marked done per device), plus bulk sending through WATI only when it's set up on the server | `components/RemindersDialog.tsx`, `lib/receipt.ts` (`reminderMessage`), `app/api/reminders/*`, `lib/wati.ts`, `lib/reminders.ts` |
+| Reminders of late customers: one by one from the device data, no API, also offline (📞 `tel:`, 💬 `whatsappLink` with the chosen text filled by `fillTemplate`, 🎤 voice message handed over by `shareAudio`: share menu on phones, download on PCs; marked done per device), plus bulk sending through WATI only when it's set up on the server. Texts: ⚙️ «💬 رسائل التذكير» (`ReminderSettingsDialog`), shop setting `reminder-templates` (JSON list, `[variable]` names in `TEMPLATE_VARIABLES`; a line whose variables are all empty is dropped; `DEFAULT_TEMPLATE` = the built-in message), saved by accounts with `reminders`; voice messages recorded / picked per device | `components/RemindersDialog.tsx`, `components/ReminderSettings.tsx`, `lib/reminder-templates.ts` (pure, tested), `lib/reminder-audio.ts`, `lib/receipt.ts` (`reminderMessage`), `app/api/reminders/*`, `lib/wati.ts`, `lib/reminders.ts` |
 | Sale (cart, cash / credit, scan into sale). Sticky `.sale-top` (search + 📷), then the big family tiles `.cat-tiles` (as in the first version); a tile opens the category's full-screen page (`SaleCategoryPage`: `Modal` with `head` = category menu, class `page`; scoped search, filters الكل / متوفر / جديد / مستعمل, product grid drawn 48 at a time, 🛒 count on cards, cart bar). «عطاك»: `quickCash` chips, `cashOutcome` (change / exact / short → «📒 الباقي كريدي» = credit with the cash as advance); credit advance ≥ total → «💵 سجلها بيع كاش» | `components/SaleForm.tsx`, `components/SaleCategoryPage.tsx`, `lib/sale-browse.ts` (pure, tested); cash ticket `components/SaleTicket.tsx` |
 | Stock list, product form (codes, barcode popup), quantity ±, unknown scanned code, category chips | `components/StockView.tsx` (StockForm, AdjustForm, UnknownCode inside) |
 | Product families (categories) | `components/CategoryForm.tsx`, `components/CategoryIcon.tsx`, `lib/image.ts` |
@@ -146,7 +148,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Route protection (what needs login) | `src/proxy.ts` (matcher: login, PWA files, `/scanner/` are public) |
 | Offline / PWA (pages: network if it answers within 4 s, else the saved copy; an open app never reloads itself, so each build has `NEXT_PUBLIC_APP_VERSION` (next.config.ts, Vercel commit) sent as `version` by `/api/data`; an older page shows «🔄 كاينة نسخة جديدة» → `reloadNewest` clears the saved pages and reloads, only on a tap) | `lib/app-version.ts`, `public/sw.js` (cache version `VERSION`), `components/RegisterServiceWorker.tsx`, `components/InstallButton.tsx`, `app/manifest.ts`, `lib/idb.ts` |
 | Sync state bar, refused changes (who / device / what differs, filtered by permissions) | `components/SyncBar.tsx`, `lib/change-origin.ts` |
-| Header menu (users, «🏭 خدمة العملاء» brands' numbers for accounts with `claims`, backup, theme, logout) | `components/TopMenu.tsx`; theme `lib/theme.ts` |
+| Header menu (users, «💬 رسائل التذكير» for accounts with `reminders`, «🏭 خدمة العملاء» brands' numbers for accounts with `claims`, backup, theme, logout) | `components/TopMenu.tsx`; theme `lib/theme.ts` |
 | Excel backup (every tab except users; each cell kept under Excel's 32 767 chars by `fitCell`, so pictures stay ≤ 32 000: `MAX_PHOTO_LENGTH`) | `lib/xlsx.ts`, `lib/backup.ts`, `components/BackupDialog.tsx`, `app/api/export` |
 | Archive (old customers) | `components/ArchiveView.tsx`, `app/api/archive/*`, `lib/store.ts` |
 | Sheets API client / env vars | `lib/sheets.ts`, `lib/env.ts` |

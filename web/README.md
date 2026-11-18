@@ -474,6 +474,26 @@ A main tab that looks like the paper notebook next to the till, for every accoun
   زبون» turns the sale into a credit sale with what was given as the advance. In a
   credit sale, an advance that covers everything offers «💵 سجلها بيع كاش».
 
+### 💬 Reminder texts and voice messages
+
+⚙️ → «💬 رسائل التذكير» (accounts that send reminders):
+
+- **Written texts**, shared by every device (sheet tab الإعدادات, key
+  `reminder-templates`). Write the message as you like and put between brackets
+  what the app fills for each customer: [الاسم], [الباقي], [تاريخ الدفعة],
+  [شحال فات], [السلعة], [الطريطة], [المجموع], [المدفوع], [المحل], [هاتف المحل].
+  The buttons insert them where the cursor is; a preview shows the message for a
+  real customer; an unknown [word] is flagged. A line whose values are all empty
+  (e.g. no instalment) is left out. «التذكير العادي» is the built-in text.
+- **Voice messages**, kept on this device only: «🎤 سجل» (up to 2 minutes) or
+  «📁 اختار ملف صوتي», then listen or delete.
+
+In «تذكير المتأخرين», choose the text and (optionally) the voice message; the
+choice is remembered on the device. «💬 واتساب» opens the chat with the chosen text.
+«🎤 صوت»: on a phone the share menu opens → WhatsApp → pick the customer (WhatsApp
+can't receive a sound through a link); on a PC the file is downloaded, to drag
+into the customer's chat.
+
 ### 🔄 New version of the app
 
 An app window left open (or opened on a slow network, from the copy saved on
