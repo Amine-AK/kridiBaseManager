@@ -60,6 +60,8 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
   `/api/data` reloads, or edits made then get a stale `base` → «conflict»);
   ops added while a sync runs are sent right after it (`again` flag). While the app is open it
   also refreshes every 60 s (`REFRESH_EVERY_MS`), so others' changes (notebook notifications) arrive.
+  Each `/api/data` also brings the server's build `version`: `updateReady` = this page is an
+  older build → the «🔄 كاينة نسخة جديدة» bar in `Dashboard.tsx` (`lib/app-version.ts`).
 - Change origin (`src/lib/change-origin.ts`): each op carries `device` (label made
   on the device: system · browser · `#id` from localStorage `device-id`) and `by`
   (account name, **stamped by the server** in `/api/sync`). Products keep the last
@@ -231,4 +233,8 @@ negative margins that need the app's page padding (overflows in bare test pages)
   **"pull request and merge"**: open the PR (English, What / Checks sections,
   footer from the session) and merge it with `merge_method: merge`.
 - Temporary / experimental work is marked `[TEST]` in the PR title.
+- **"I don't see the change"** after a merge: check the PR's Vercel status
+  (`pull_request_read` → `get_status`: «Deployment has completed»). If it's deployed,
+  the owner's open app is on an older build: the blue «🔄 كاينة نسخة جديدة» bar
+  (from PR 50 on) or Ctrl+Shift+R / closing and reopening the app loads it.
 - No force-push (blocked); use merges instead of rebases.
