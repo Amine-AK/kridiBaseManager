@@ -474,6 +474,15 @@ A main tab that looks like the paper notebook next to the till, for every accoun
   زبون» turns the sale into a credit sale with what was given as the advance. In a
   credit sale, an advance that covers everything offers «💵 سجلها بيع كاش».
 
+### 📲 Reminding late customers one by one
+
+«تذكير المتأخرين» lists the late customers from the data on the device (also
+without internet). Each one has «📞 اتصل» and «💬 واتساب»: WhatsApp opens on their
+number with the reminder typed (due date, unpaid product, what is left, the
+instalment); nothing is sent until you press send. No API or WATI needed. A
+customer reminded today from this device shows «✓ … اليوم». If WATI is set up on
+the server, ticking customers still sends to several at once through it.
+
 ### 🏭 After-sales requests in الكريدي
 
 For accounts with «🏭 خدمة الشركة», the الكريدي page shows the requests to the brands

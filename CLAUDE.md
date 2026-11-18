@@ -39,7 +39,8 @@ reminders. Installable PWA, used on phones and the shop PC, works offline.
 - Per-device settings go in `localStorage` (try/catch every access). Keys in use:
   `theme`, `label-setup`, `label-size`, `label-price`, `receipt-paper`,
   `scanner-camera`, `backup-last`, `backup-snooze`, `device-id`,
-  `notes-seen` (account → ISO time الكناش was last looked at),
+  `notes-seen` (account → ISO time الكناش was last looked at), `reminder-contacted`
+  (customer → day + how they were reminded by hand today),
   `label-print-test` (old, migrated). The ledger snapshot and the queue of
   unsent ops are in IndexedDB (`ledger-snapshot`, `ledger-queue`).
   Per tab (`sessionStorage`): `view` (main tab), `budget-tab` (الصندوق / التقارير),
@@ -116,7 +117,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Add / edit customer, instalment (الطريطة) | `components/ClientForms.tsx` |
 | Add purchase, record / edit payment (split hint, next due date) | `components/MoneyForms.tsx` |
 | Payment receipt, statement (كشف), WhatsApp message texts | `lib/receipt.ts` (texts) + `components/ReceiptDialog.tsx` (screen / print) |
-| WhatsApp reminders (WATI) | `components/RemindersDialog.tsx`, `app/api/reminders/*`, `lib/wati.ts`, `lib/reminders.ts` |
+| Reminders of late customers: one by one from the device data, no API, also offline (📞 `tel:`, 💬 `whatsappLink` + `reminderMessage` in `lib/receipt.ts`, marked done per device), plus bulk sending through WATI only when it's set up on the server | `components/RemindersDialog.tsx`, `lib/receipt.ts` (`reminderMessage`), `app/api/reminders/*`, `lib/wati.ts`, `lib/reminders.ts` |
 | Sale (cart, cash / credit, scan into sale). Sticky `.sale-top` (search + 📷), then the big family tiles `.cat-tiles` (as in the first version); a tile opens the category's full-screen page (`SaleCategoryPage`: `Modal` with `head` = category menu, class `page`; scoped search, filters الكل / متوفر / جديد / مستعمل, product grid drawn 48 at a time, 🛒 count on cards, cart bar). «عطاك»: `quickCash` chips, `cashOutcome` (change / exact / short → «📒 الباقي كريدي» = credit with the cash as advance); credit advance ≥ total → «💵 سجلها بيع كاش» | `components/SaleForm.tsx`, `components/SaleCategoryPage.tsx`, `lib/sale-browse.ts` (pure, tested); cash ticket `components/SaleTicket.tsx` |
 | Stock list, product form (codes, barcode popup), quantity ±, unknown scanned code, category chips | `components/StockView.tsx` (StockForm, AdjustForm, UnknownCode inside) |
 | Product families (categories) | `components/CategoryForm.tsx`, `components/CategoryIcon.tsx`, `lib/image.ts` |

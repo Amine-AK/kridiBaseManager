@@ -1323,3 +1323,11 @@ a.btn { text-decoration: none; }
   .summary.trio .stat:first-child { grid-column: auto; display: grid; grid-template-columns: none; }
   .summary.trio .stat:first-child .stat-value { grid-row: auto; grid-column: auto; font-size: 17px; }
 }
+/* Reminders one by one (RemindersDialog.tsx): call / WhatsApp per late customer. */
+.remind-list > li { display: grid; gap: 8px; padding: 10px 12px; }
+.remind-row { display: flex; align-items: center; gap: 10px; }
+.remind-row .pick-main { flex: 1; min-width: 0; }
+.remind-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.remind-actions .btn { flex: 1 1 120px; text-decoration: none; }
+.remind-done { flex-basis: 100%; font-size: 12px; color: var(--accent); }
+.remind-list > li.contacted { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
