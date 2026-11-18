@@ -290,7 +290,8 @@ export function Dashboard() {
   if (data.needsSetup) return <SetupScreen onDone={() => void data.refresh()} />;
 
   const savedNote = online ? "" : " · محفوظ فالتيليفون";
-  const reminderBlocked = !online ? "التذكير خاصو الأنترنيت" : data.pendingCount > 0 || data.syncing ? "تسنى حتى تتزامن التعديلات" : "";
+  // Only the bulk sending through WATI needs this; reminding one by one works offline.
+  const reminderBlocked = !online ? "خاصو الأنترنيت" : data.pendingCount > 0 || data.syncing ? "تسنى حتى تتزامن التعديلات" : "";
   const archiveBlocked = !online || data.pendingCount > 0 || data.syncing;
   const activeFilterCount = [filters.from, filters.to, filters.minDebt, filters.maxDebt].filter(Boolean).length;
   const find = (id: string) => summaries.find((s) => s.client.id === id);
@@ -485,19 +486,12 @@ export function Dashboard() {
             type="button"
             className="btn whatsapp"
             onClick={() => setDialog({ kind: "remind" })}
-            disabled={Boolean(reminderBlocked)}
-            aria-describedby={reminderBlocked ? "remind-why" : undefined}
           >
             تذكير المتأخرين
             {summary.overdue > 0 && <span className="badge">{summary.overdue}</span>}
           </button>
           )}
         </div>
-        {reminderBlocked && allow("reminders") && (
-          <p id="remind-why" className="muted small">
-            {reminderBlocked}
-          </p>
-        )}
         {summary.archivable.length > 0 && allow("client_delete") && (
           <div className="archive-banner">
             <p>
@@ -681,7 +675,7 @@ export function Dashboard() {
       {dialog?.kind === "backup" && (
         <BackupDialog reminder={dialog.reminder} pending={data.pendingCount} onClose={() => setDialog(null)} onToast={setToast} />
       )}
-      {dialog?.kind === "remind" && <RemindersDialog onClose={() => setDialog(null)} />}
+      {dialog?.kind === "remind" && data.ledger && <RemindersDialog data={data} bulkBlocked={reminderBlocked} onClose={() => setDialog(null)} />}
       {dialog?.kind === "archive-all" && (
         <Confirm title="أرشفة الخالصين" confirmLabel={`أرشف ${summary.archivable.length}`} onClose={() => setDialog(null)} onConfirm={() => void archiveAll()}>
           <p className="lead">هاد الزبناء خلصو كلشي من أكثر من 3 شهور، غادي يتنقلو للأرشيف مع المشتريات والدفعات ديالهم:</p>

@@ -3,67 +3,98 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { dueText, matchesClient, money } from "@/lib/format";
-import type { DueStatus } from "@/lib/sheet-logic";
+import { reminderMessage, whatsappLink } from "@/lib/receipt";
+import { formatMoroccoPhone, isValidPhone } from "@/lib/sheet-logic";
 import { Modal } from "./Modal";
-
-interface Item {
-  id: string;
-  name: string;
-  phone: string;
-  remaining: number;
-  dueDate: string;
-  status: DueStatus;
-  blocker: string | null;
-  sentToday: boolean;
-}
+import type { LedgerState } from "./useLedger";
 
 type Outcome = { status: "sent" | "failed" | "skipped"; detail: string };
 
+/** What WATI knows (only when it is set up on the server): who was already reminded today. */
+interface WatiInfo {
+  watiConfigured: boolean;
+  sentToday: Set<string>;
+}
+
 const BATCH = 10;
 
-export function RemindersDialog({ onClose }: { onClose: () => void }) {
-  const [data, setData] = useState<{ today: string; watiConfigured: boolean; overdue: Item[] } | null>(null);
-  const [loadError, setLoadError] = useState("");
+// Who was reminded by hand from this device today (WhatsApp opened or called), so the
+// list shows it. Per device, kept a day.
+const CONTACTED_KEY = "reminder-contacted";
+type Contacted = Record<string, { day: string; how: "wa" | "call" }>;
+
+function readContacted(today: string): Contacted {
+  try {
+    const all = JSON.parse(localStorage.getItem(CONTACTED_KEY) || "{}") as Contacted;
+    return Object.fromEntries(Object.entries(all).filter(([, v]) => v?.day === today));
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The late customers. For each one: «📞 اتصل» and «💬 واتساب» (WhatsApp opens on
+ * their number with the reminder typed; nothing is sent until you press send).
+ * This works from the data on the device, also offline, without any API. When
+ * WATI is set up on the server, several can also be sent at once through it.
+ */
+export function RemindersDialog({ data, bulkBlocked, onClose }: { data: LedgerState; bulkBlocked: string; onClose: () => void }) {
+  const today = data.today;
+  const overdue = useMemo(
+    () => data.summaries.filter((s) => s.status === "overdue").sort((a, b) => a.client.nextDueDate.localeCompare(b.client.nextDueDate)),
+    [data.summaries],
+  );
+  const [query, setQuery] = useState("");
+  const [contacted, setContacted] = useState<Contacted>({});
+  const [wati, setWati] = useState<WatiInfo | null>(null);
+  const [waTarget, setWaTarget] = useState<"app" | "web">("app");
+  // WATI (bulk) only
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [step, setStep] = useState<"pick" | "confirm" | "sending" | "done">("pick");
   const [outcomes, setOutcomes] = useState<Record<string, Outcome>>({});
   const [sendError, setSendError] = useState("");
-  const [query, setQuery] = useState("");
 
   useEffect(() => {
-    apiFetch<{ today: string; watiConfigured: boolean; overdue: Item[] }>("/api/reminders")
+    setContacted(readContacted(today));
+    // A PC opens WhatsApp Web; a phone opens the app.
+    if (!/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) setWaTarget("web");
+  }, [today]);
+
+  // Ask the server whether WATI is set up; without internet the list still works by hand.
+  useEffect(() => {
+    if (!data.online) return;
+    apiFetch<{ watiConfigured: boolean; overdue: { id: string; sentToday: boolean }[] }>("/api/reminders")
       .then((d) => {
-        setData(d);
-        setSelected(new Set(d.overdue.filter((i) => !i.blocker && !i.sentToday).map((i) => i.id)));
+        const sent = new Set(d.overdue.filter((i) => i.sentToday).map((i) => i.id));
+        setWati({ watiConfigured: d.watiConfigured, sentToday: sent });
+        setSelected(new Set(overdue.filter((s) => isValidPhone(formatMoroccoPhone(s.client.phone)) && !sent.has(s.client.id)).map((s) => s.client.id)));
       })
-      .catch((e) => setLoadError(e.message));
-  }, []);
+      .catch(() => setWati(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.online]);
 
-  const sendable = useMemo(() => data?.overdue.filter((i) => !i.blocker) ?? [], [data]);
-  const chosen = sendable.filter((i) => selected.has(i.id));
-  // The search only narrows the list; ticked customers stay ticked when hidden.
-  const shown = data?.overdue.filter((i) => matchesClient(i.name, i.phone, query)) ?? [];
-  const shownSendable = shown.filter((i) => !i.blocker);
-
-  /** Ticks every customer in view, except those already reminded today. */
-  function selectShown() {
-    setSelected((s) => new Set([...s, ...shownSendable.filter((i) => !i.sentToday).map((i) => i.id)]));
+  function mark(id: string, how: "wa" | "call") {
+    setContacted((old) => {
+      const next = { ...old, [id]: { day: today, how } };
+      try {
+        localStorage.setItem(CONTACTED_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   }
 
-  function clearShown() {
-    const hide = new Set(shown.map((i) => i.id));
-    setSelected((s) => new Set([...s].filter((id) => !hide.has(id))));
-  }
-  const counts = Object.values(outcomes).reduce(
-    (acc, o) => ({ ...acc, [o.status]: acc[o.status] + 1 }),
-    { sent: 0, failed: 0, skipped: 0 },
-  );
+  const bulk = Boolean(wati?.watiConfigured);
+  const shown = overdue.filter((s) => matchesClient(s.client.name, s.client.phone, query));
+  const valid = (phone: string) => isValidPhone(formatMoroccoPhone(phone));
+  const chosen = overdue.filter((s) => selected.has(s.client.id) && valid(s.client.phone));
+  const counts = Object.values(outcomes).reduce((acc, o) => ({ ...acc, [o.status]: acc[o.status] + 1 }), { sent: 0, failed: 0, skipped: 0 });
+  const doneByHand = overdue.filter((s) => contacted[s.client.id]).length;
 
-  function toggle(row: string) {
+  function toggle(id: string) {
     setSelected((s) => {
       const next = new Set(s);
-      if (next.has(row)) next.delete(row);
-      else next.add(row);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -71,7 +102,7 @@ export function RemindersDialog({ onClose }: { onClose: () => void }) {
   async function send() {
     setStep("sending");
     setSendError("");
-    const queue = chosen.map((i) => i.id);
+    const queue = chosen.map((s) => s.client.id);
     for (let i = 0; i < queue.length; i += BATCH) {
       try {
         const { results } = await apiFetch<{ results: ({ id: string } & Outcome)[] }>("/api/reminders/send", {
@@ -88,15 +119,19 @@ export function RemindersDialog({ onClose }: { onClose: () => void }) {
   }
 
   const busy = step === "sending";
-  let footer: React.ReactNode = null;
-  if (step === "pick" && data) {
+  let footer: React.ReactNode = (
+    <button type="button" className="btn" onClick={onClose}>
+      سد
+    </button>
+  );
+  if (bulk && step === "pick") {
     footer = (
       <>
         <button type="button" className="btn" onClick={onClose}>
           سد
         </button>
-        <button type="button" className="btn primary" disabled={!chosen.length || !data.watiConfigured} onClick={() => setStep("confirm")}>
-          صيفط التذكير ({chosen.length})
+        <button type="button" className="btn primary" disabled={!chosen.length || Boolean(bulkBlocked)} onClick={() => setStep("confirm")} title={bulkBlocked || undefined}>
+          صيفط للمختارين عبر WATI ({chosen.length})
         </button>
       </>
     );
@@ -121,27 +156,26 @@ export function RemindersDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal title="تذكير الزبناء المتأخرين" onClose={onClose} busy={busy} footer={footer}>
-      {loadError && (
-        <p className="alert error" role="alert">
-          {loadError}
+      {overdue.length === 0 ? (
+        <p className="empty">ما كاين حتى زبون متأخر. 👌</p>
+      ) : (
+        <p className="muted small">
+          عيّط ولا صيفط واتساب لكل زبون بوحدو: الرسالة كتكون مكتوبة، وما كتمشي حتى تضغط إرسال فواتساب.
+          {doneByHand > 0 && (
+            <>
+              {" "}
+              · ✓ <bdi dir="ltr">{doneByHand}</bdi> تذكّرو اليوم من هاد الجهاز
+            </>
+          )}
         </p>
       )}
-      {!data && !loadError && <p className="muted">كنجيبو اللائحة…</p>}
-
-      {data && !data.watiConfigured && (
-        <p className="alert warn" role="alert">
-          WATI ماشي مضبوط فالسيرفر. زيد WATI_API_ENDPOINT و WATI_ACCESS_TOKEN و WATI_TEMPLATE_NAME و WATI_CHANNEL_NUMBER (شوف README).
-        </p>
-      )}
-
-      {data && data.overdue.length === 0 && <p className="empty">ما كاين حتى زبون متأخر. 👌</p>}
+      {bulk && bulkBlocked && step === "pick" && <p className="muted small">الإرسال الجماعي (WATI): {bulkBlocked}</p>}
 
       {step === "confirm" && (
         <p className="alert info">
           غادي تصيفط رسالة واتساب لـ <strong>{chosen.length}</strong> زبون عبر WATI. الرسالة ما يمكنش ترجع.
         </p>
       )}
-
       {(step === "sending" || step === "done") && (
         <div className="progress" role="status" aria-live="polite">
           <progress max={chosen.length} value={counts.sent + counts.failed + counts.skipped} />
@@ -156,70 +190,69 @@ export function RemindersDialog({ onClose }: { onClose: () => void }) {
         </p>
       )}
 
-      {data && data.overdue.length > 0 && step === "pick" && (
-        <>
-          <div className="search-row">
-            <label className="visually-hidden" htmlFor="reminder-search">
-              قلب على زبون
-            </label>
-            <input
-              id="reminder-search"
-              type="search"
-              className="search"
-              placeholder="قلب بالسمية ولا الهاتف…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-          <div className="pick-tools">
-            <span className="muted">
-              مختارين <strong>{chosen.length}</strong> من {sendable.length}
-            </span>
-            <button type="button" className="btn ghost" onClick={selectShown} disabled={!shownSendable.length}>
-              {query.trim() ? "اختار لي باينين" : "اختار الكل"}
-            </button>
-            <button type="button" className="btn ghost" onClick={clearShown} disabled={!shown.some((i) => selected.has(i.id))}>
-              {query.trim() ? "حيد لي باينين" : "حيد الكل"}
-            </button>
-          </div>
-          {shown.length === 0 && <p className="empty">حتى زبون متأخر ما كيطابق «{query.trim()}».</p>}
-        </>
+      {overdue.length > 0 && step === "pick" && (
+        <div className="search-row">
+          <label className="visually-hidden" htmlFor="reminder-search">
+            قلب على زبون
+          </label>
+          <input id="reminder-search" type="search" className="search" placeholder="قلب بالسمية ولا الهاتف…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
       )}
+      {overdue.length > 0 && step === "pick" && shown.length === 0 && <p className="empty">حتى زبون متأخر ما كيطابق «{query.trim()}».</p>}
 
-      {data && data.overdue.length > 0 && (
-        <ul className="pick-list">
-          {(step === "pick" ? shown : chosen).map((c) => {
-            const { blocker, sentToday } = c;
+      {overdue.length > 0 && (
+        <ul className="pick-list remind-list">
+          {(step === "pick" ? shown : chosen).map((s) => {
+            const c = s.client;
+            const ok = valid(c.phone);
+            const wa = ok ? whatsappLink(c.phone, reminderMessage(s), waTarget) : null;
+            const tel = c.phone.replace(/[^\d+]/g, "");
+            const done = contacted[c.id];
             const outcome = outcomes[c.id];
             return (
-              <li key={c.id} className={blocker ? "disabled" : ""}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={selected.has(c.id) && !blocker}
-                    disabled={Boolean(blocker) || step !== "pick"}
-                    onChange={() => toggle(c.id)}
-                  />
+              <li key={c.id} className={done ? "contacted" : ""}>
+                <div className="remind-row">
+                  {bulk && (
+                    <input
+                      type="checkbox"
+                      aria-label={`اختار ${c.name} للإرسال الجماعي`}
+                      checked={selected.has(c.id) && ok}
+                      disabled={!ok || step !== "pick"}
+                      onChange={() => toggle(c.id)}
+                    />
+                  )}
                   <span className="pick-main">
                     <strong>{c.name}</strong>
-                    <span className="muted" dir="ltr">
+                    <bdi dir="ltr" className="muted">
                       {c.phone || "—"}
-                    </span>
+                    </bdi>
                   </span>
                   <span className="pick-side">
-                    <span className="amount">{money(c.remaining)}</span>
-                    <span className="muted">{dueText(c.dueDate, c.status, data.today)}</span>
+                    <span className="amount">{money(s.remaining)}</span>
+                    <span className="muted">{dueText(c.nextDueDate, s.status, today)}</span>
                   </span>
-                </label>
-                {(blocker || sentToday || outcome) && (
-                  <p className={`pick-note ${outcome?.status ?? (blocker ? "failed" : "skipped")}`}>
-                    {outcome
-                      ? outcome.status === "sent"
-                        ? "✓ تصيفط"
-                        : outcome.detail
-                      : blocker ?? "تصيفط ليه تذكير اليوم"}
-                  </p>
+                </div>
+                {step === "pick" && (
+                  <div className="remind-actions">
+                    {tel ? (
+                      <a className="btn small-btn" href={`tel:${tel}`} onClick={() => mark(c.id, "call")}>
+                        📞 اتصل
+                      </a>
+                    ) : (
+                      <span className="muted small">ما عندوش رقم</span>
+                    )}
+                    {wa ? (
+                      <a className="btn whatsapp small-btn" href={wa} target="_blank" rel="noopener noreferrer" onClick={() => mark(c.id, "wa")}>
+                        💬 واتساب
+                      </a>
+                    ) : (
+                      tel && <span className="muted small">الرقم ما صالحش لواتساب</span>
+                    )}
+                    {done && <span className="remind-done">✓ {done.how === "wa" ? "تحلّ الواتساب" : "تعيّط ليه"} اليوم</span>}
+                    {!done && wati?.sentToday.has(c.id) && <span className="remind-done">✓ تصيفط ليه اليوم (WATI)</span>}
+                  </div>
                 )}
+                {outcome && <p className={`pick-note ${outcome.status}`}>{outcome.status === "sent" ? "✓ تصيفط" : outcome.detail}</p>}
               </li>
             );
           })}

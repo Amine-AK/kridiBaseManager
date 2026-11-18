@@ -3,7 +3,7 @@
 
 import { money } from "./format";
 import { formatMoroccoPhone, installmentLine, isValidPhone } from "./sheet-logic";
-import { itemStatuses, paymentSplit, sortPayments, type ClientSummary, type Payment } from "./ledger";
+import { itemStatuses, paymentSplit, sortPayments, unpaidItems, type ClientSummary, type Payment } from "./ledger";
 
 export const SHOP = {
   name: "ELECTRO-LMESTOUR",
@@ -271,6 +271,24 @@ export function statementMessage(st: Statement): string {
  * - "web": web.whatsapp.com in the browser (PCs). Handing the text to the
  *   WhatsApp Desktop app on Windows can turn emojis into "�"; the browser keeps them.
  */
+/**
+ * Reminder for a late customer, sent by hand from the phone (WhatsApp opens
+ * with it typed): when the payment was due, what is still being paid, what is
+ * left and the agreed instalment.
+ */
+export function reminderMessage(s: ClientSummary): string {
+  const c = s.client;
+  const items = unpaidItems(s);
+  const lines = [`السلام عليكم ${c.name} 👋`, `تذكير من ${SHOP.name}:`];
+  if (c.nextDueDate) lines.push(`📅 الدفعة ديالكم كانت نهار ${displayDate(c.nextDueDate)}.`);
+  if (items.length) lines.push(`🛒 السلعة: ${items.join(" + ")}`);
+  lines.push(`💰 الباقي: *${money(s.remaining)}*`);
+  const inst = installmentText(s);
+  if (inst) lines.push(`🔁 الطريطة: ${inst}`);
+  lines.push("", "المرجو تخلصو فأقرب وقت. شكراً 🙏", `🏪 ${SHOP.name}`, `📞 ${SHOP.phone}`);
+  return lines.join("\n");
+}
+
 export function whatsappLink(phone: string, message: string, target: "app" | "web" = "app"): string | null {
   const intl = formatMoroccoPhone(phone);
   if (!isValidPhone(intl)) return null;
