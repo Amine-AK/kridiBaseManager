@@ -127,7 +127,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | After-sales requests (خدمة الشركة, sub-tab of الإصلاح, `REPAIR_TABS` in `Dashboard.tsx`): a sold product has a fault the brand's service must repair. «🏭 ريكلاماسيون» on the customer page (their purchases) or «＋ طلب جديد» (any sale, cash too, or typed by hand) → choose the brand's service → saved (`Claim`) and WhatsApp opens on the service's number. Late = open and 48 h since `lastSentAt` (request or last reminder, Sundays included): red, counted on the tabs, «🔔 ذكّر الشركة» (reminder message, `reminders` + 1). Brands' numbers: setting `service-contacts` (⚙️ menu «خدمة العملاء»). Service `claims` (server hides requests without it; `setting.save` of `service-contacts` needs it) | `components/ClaimsView.tsx` (`ClaimsView`, `ClaimForm`, `ServiceContactsDialog`, `useNow`), `lib/claims.ts` (pure, tested), `Claim` in `lib/ledger.ts`, flag on purchases in `components/ClientDetail.tsx` |
 | Approvals of sellers' credit changes: bar in الكريدي (`ApprovalsBar`), list grouped by customer with ✓ قبول / ✕ رفض / ✓ قبل الكل / 📝 قبول بملاحظة, seller's «📝 زيد ملاحظة للمالك» (`ApprovalsDialog`, also from the customer page banner), ⏳ on customers and rows | `components/ApprovalsView.tsx`, `lib/approvals.ts` (pure, tested), `components/ClientDetail.tsx`, `Dashboard.tsx` |
 | Notebook (الكناش, main tab): ruled-paper page, write a line at once (📝 ملاحظة / 🙋 طلب زبون, optional customer: name fills from the phone via `ownerForPhone`, on-device data), pages per day, ✓ tick (who / when), search + filters, edit; every account writes and ticks, only the owner deletes. Paper colours `--paper`, `--paper-line`, `--paper-margin`. As notifications: what other accounts wrote / ticked / changed since this account last opened it (`noteEvents`, `notes-seen`) → blue unread count on the tab, popup elsewhere in the app, «🔔 جديد من آخر مرة» box + highlighted lines, phone notification when the app is in the background once allowed (service worker `showNotification`; tap → `notificationclick` opens الكناش via `open-view` message or `/?view=notes`) | `components/NotesView.tsx`, `components/useNoteAlerts.ts`, `public/sw.js`, `lib/notes.ts` (pure, tested), `Note` in `lib/ledger.ts`, `.notebook*` / `.note-*` in `globals.css` |
-| Reports screen | `components/ReportsView.tsx` |
+| Reports screen (all figures come from المبيعات, `report()` in `lib/shop.ts`; «السلع لي تباعو» groups by the sale's `item`, NOT the purchase's: a name fixed by hand in المشتريات must be fixed in المبيعات too (column E «السلعة»); an edit made in the app (`purchase.update`) updates both) | `components/ReportsView.tsx`, `report` in `lib/shop.ts` |
 | Shop barcodes (EAN-13 starting with 2, new number) | `lib/barcode.ts` |
 | Sticker printing window (sizes, list, 🔄 / ⬇️, print pages) | `components/LabelPrint.tsx` |
 | Printer setup panel (gap, margins, shift, lines, sizes, rotation, Paysage, driver page) | `components/LabelSetup.tsx` (UI + `useLabelSetup(shared)`) |
@@ -189,6 +189,10 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 - `npm run build`: production build (works without env vars)
 - Known: **2 tests in `src/lib/sheet-logic.test.ts` (Casablanca time) fail in
   the sandbox** (timezone data) and on `main` too. Not caused by your change.
+- Known: `npm run build` and `next dev` may **stop once** with a Next.js security
+  notice (`SecurityFatalError`, advisory GHSA-mfr8-8qww-v76h on next 16.4.3, about
+  `use cache` + `unstable_cache`, which the app doesn't use). Run the same command
+  again: it then works. Upgrading Next.js is a separate change the owner hasn't asked for.
 
 Tests live next to the code: `src/lib/*.test.ts`, `src/scanner/scanner.test.ts`.
 Put new logic in pure functions in `lib/` (or `scanner/`) and test it there.
