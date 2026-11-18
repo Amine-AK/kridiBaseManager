@@ -474,6 +474,13 @@ A main tab that looks like the paper notebook next to the till, for every accoun
   زبون» turns the sale into a credit sale with what was given as the advance. In a
   credit sale, an advance that covers everything offers «💵 سجلها بيع كاش».
 
+### 🔄 New version of the app
+
+An app window left open (or opened on a slow network, from the copy saved on
+the device) keeps the version it started with. When a newer version is online,
+a blue bar «🔄 كاينة نسخة جديدة ديال التطبيق» appears with «حدّث دابا», which loads
+it. It never reloads by itself, so a half-filled sale or form isn't lost.
+
 ### 📲 Reminding late customers one by one
 
 «تذكير المتأخرين» lists the late customers from the data on the device (also

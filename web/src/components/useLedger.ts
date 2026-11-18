@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, apiFetch } from "@/lib/client";
 import { asRequest, needsApproval, withPending } from "@/lib/approvals";
 import { thisDevice } from "@/lib/change-origin";
+import { isOutdated } from "@/lib/app-version";
 import { idbGet, idbSet } from "@/lib/idb";
 import {
   applyOps,
@@ -72,6 +73,8 @@ export interface LedgerState {
   discard: (opId: string) => void;
   /** DEV ONLY: the server allows «مسح جميع المعلومات». */
   devReset: boolean;
+  /** A newer build of the app is online than the one open on this device. */
+  updateReady: boolean;
   /** DEV ONLY: forget this device's unsent changes and reload from the (emptied) sheet. */
   clearDevice: () => Promise<void>;
 }
@@ -100,6 +103,7 @@ export function useLedger(): LedgerState {
   const [loadError, setLoadError] = useState("");
   const [syncError, setSyncError] = useState("");
   const [devReset, setDevReset] = useState(false);
+  const [updateReady, setUpdateReady] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
   const [today, setToday] = useState(() => todayISO());
 
@@ -124,7 +128,8 @@ export function useLedger(): LedgerState {
   }, []);
 
   const pull = useCallback(async () => {
-    const data = await apiFetch<{ ledger?: Ledger; today: string; needsSetup?: boolean; devReset?: boolean; me?: Me }>("/api/data");
+    const data = await apiFetch<{ ledger?: Ledger; today: string; needsSetup?: boolean; devReset?: boolean; me?: Me; version?: string }>("/api/data");
+    if (isOutdated(data.version)) setUpdateReady(true);
     lastPull.current = Date.now();
     setDevReset(Boolean(data.devReset));
     if (data.me) setMe(data.me);
@@ -313,6 +318,7 @@ export function useLedger(): LedgerState {
     },
     discard: (opId) => saveQueue(queueRef.current.filter((q) => q.op.opId !== opId)),
     devReset,
+    updateReady,
     clearDevice: async () => {
       saveQueue([]);
       await pull();

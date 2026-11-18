@@ -21,6 +21,7 @@ import { SaleTicketDialog } from "./SaleTicket";
 import { StockView } from "./StockView";
 import { RepairsView } from "./RepairsView";
 import { NotesView } from "./NotesView";
+import { reloadNewest } from "@/lib/app-version";
 import { Modal } from "./Modal";
 import { useNoteAlerts } from "./useNoteAlerts";
 import { isOpenRequest } from "@/lib/notes";
@@ -373,6 +374,15 @@ export function Dashboard() {
       )}
 
       <main className="content">
+        {/* A newer build is online: reload on a tap (not by itself: a cart or a form may be half filled). */}
+        {data.updateReady && (
+          <div className="update-bar" role="status">
+            <span>🔄 كاينة نسخة جديدة ديال التطبيق.</span>
+            <button type="button" className="btn primary small-btn" onClick={() => void reloadNewest()}>
+              حدّث دابا
+            </button>
+          </div>
+        )}
         <SyncBar state={data} />
 
         {current !== "credit" && !data.ledger && !data.loadError && <p className="muted center">كنجيبو المعلومات من الـ Google Sheet…</p>}

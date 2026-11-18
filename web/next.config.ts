@@ -8,6 +8,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // One id per build, known by the server and the page: an app left open on an older
+  // build sees that a newer one is online (lib/app-version.ts).
+  env: { NEXT_PUBLIC_APP_VERSION: (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 12) || String(Date.now()) },
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },
