@@ -1331,3 +1331,8 @@ a.btn { text-decoration: none; }
 .remind-actions .btn { flex: 1 1 120px; text-decoration: none; }
 .remind-done { flex-basis: 100%; font-size: 12px; color: var(--accent); }
 .remind-list > li.contacted { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+/* A newer build of the app is online (lib/app-version.ts). */
+.update-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; padding: 10px 14px;
+  border: 2px solid var(--info); border-radius: 12px; background: var(--info-soft); color: var(--info); font-weight: 500;
+}
