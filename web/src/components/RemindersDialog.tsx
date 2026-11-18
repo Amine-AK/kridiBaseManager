@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { dueText, matchesClient, money } from "@/lib/format";
-import { reminderMessage, whatsappLink } from "@/lib/receipt";
+import { whatsappLink } from "@/lib/receipt";
+import { fillTemplate, parseTemplates, REMINDER_TEMPLATES_KEY } from "@/lib/reminder-templates";
+import { listAudios, shareAudio, type ReminderAudio } from "@/lib/reminder-audio";
+import { ReminderSettingsDialog } from "./ReminderSettings";
 import { formatMoroccoPhone, isValidPhone } from "@/lib/sheet-logic";
 import { Modal } from "./Modal";
 import type { LedgerState } from "./useLedger";
@@ -21,6 +24,23 @@ const BATCH = 10;
 // Who was reminded by hand from this device today (WhatsApp opened or called), so the
 // list shows it. Per device, kept a day.
 const CONTACTED_KEY = "reminder-contacted";
+// The text and the voice message chosen last time on this device.
+const TEMPLATE_KEY = "reminder-template";
+const AUDIO_KEY = "reminder-audio";
+
+function readKey(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeKey(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
 type Contacted = Record<string, { day: string; how: "wa" | "call" }>;
 
 function readContacted(today: string): Contacted {
@@ -38,8 +58,15 @@ function readContacted(today: string): Contacted {
  * This works from the data on the device, also offline, without any API. When
  * WATI is set up on the server, several can also be sent at once through it.
  */
-export function RemindersDialog({ data, bulkBlocked, onClose }: { data: LedgerState; bulkBlocked: string; onClose: () => void }) {
+export function RemindersDialog({ data, bulkBlocked, onClose, onToast }: { data: LedgerState; bulkBlocked: string; onClose: () => void; onToast: (msg: string) => void }) {
   const today = data.today;
+  const templates = parseTemplates(data.ledger!.settings.find((x) => x.key === REMINDER_TEMPLATES_KEY));
+  const [templateId, setTemplateId] = useState("");
+  const template = templates.find((t) => t.id === templateId) ?? templates[0];
+  const [audios, setAudios] = useState<ReminderAudio[]>([]);
+  const [audioId, setAudioId] = useState("");
+  const audio = audios.find((a) => a.id === audioId);
+  const [settings, setSettings] = useState(false);
   const overdue = useMemo(
     () => data.summaries.filter((s) => s.status === "overdue").sort((a, b) => a.client.nextDueDate.localeCompare(b.client.nextDueDate)),
     [data.summaries],
@@ -56,9 +83,24 @@ export function RemindersDialog({ data, bulkBlocked, onClose }: { data: LedgerSt
 
   useEffect(() => {
     setContacted(readContacted(today));
+    setTemplateId(readKey(TEMPLATE_KEY));
+    setAudioId(readKey(AUDIO_KEY));
     // A PC opens WhatsApp Web; a phone opens the app.
     if (!/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) setWaTarget("web");
   }, [today]);
+
+  // Voice messages are on this device; read again after the settings window closes.
+  useEffect(() => {
+    if (!settings) void listAudios().then(setAudios);
+  }, [settings]);
+
+  async function sendAudio(c: { id: string; name: string }) {
+    if (!audio) return;
+    const how = await shareAudio(audio, `${audio.name} - ${c.name}`);
+    if (how === "cancelled") return;
+    mark(c.id, "wa");
+    onToast(how === "shared" ? "🎤 اختار واتساب ومن بعد الزبون" : "🎤 الصوت تحمّل: جرّو للمحادثة ديال الزبون فواتساب");
+  }
 
   // Ask the server whether WATI is set up; without internet the list still works by hand.
   useEffect(() => {
@@ -169,6 +211,46 @@ export function RemindersDialog({ data, bulkBlocked, onClose }: { data: LedgerSt
           )}
         </p>
       )}
+      {overdue.length > 0 && step === "pick" && (
+        <div className="remind-choose">
+          <label className="field">
+            <span>💬 الرسالة المكتوبة</span>
+            <select
+              value={template.id}
+              onChange={(e) => {
+                setTemplateId(e.target.value);
+                writeKey(TEMPLATE_KEY, e.target.value);
+              }}
+            >
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>🎤 رسالة صوتية</span>
+            <select
+              value={audio?.id ?? ""}
+              onChange={(e) => {
+                setAudioId(e.target.value);
+                writeKey(AUDIO_KEY, e.target.value);
+              }}
+            >
+              <option value="">{audios.length ? "بلا صوت" : "ما كاين حتى صوت"}</option>
+              {audios.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="link-btn" onClick={() => setSettings(true)}>
+            ✏️ كتب ولا سجل الرسائل
+          </button>
+        </div>
+      )}
       {bulk && bulkBlocked && step === "pick" && <p className="muted small">الإرسال الجماعي (WATI): {bulkBlocked}</p>}
 
       {step === "confirm" && (
@@ -205,7 +287,7 @@ export function RemindersDialog({ data, bulkBlocked, onClose }: { data: LedgerSt
           {(step === "pick" ? shown : chosen).map((s) => {
             const c = s.client;
             const ok = valid(c.phone);
-            const wa = ok ? whatsappLink(c.phone, reminderMessage(s), waTarget) : null;
+            const wa = ok ? whatsappLink(c.phone, fillTemplate(template.text, s, today), waTarget) : null;
             const tel = c.phone.replace(/[^\d+]/g, "");
             const done = contacted[c.id];
             const outcome = outcomes[c.id];
@@ -248,6 +330,11 @@ export function RemindersDialog({ data, bulkBlocked, onClose }: { data: LedgerSt
                     ) : (
                       tel && <span className="muted small">الرقم ما صالحش لواتساب</span>
                     )}
+                    {audio && ok && (
+                      <button type="button" className="btn small-btn" onClick={() => void sendAudio(c)}>
+                        🎤 صوت
+                      </button>
+                    )}
                     {done && <span className="remind-done">✓ {done.how === "wa" ? "تحلّ الواتساب" : "تعيّط ليه"} اليوم</span>}
                     {!done && wati?.sentToday.has(c.id) && <span className="remind-done">✓ تصيفط ليه اليوم (WATI)</span>}
                   </div>
@@ -258,6 +345,7 @@ export function RemindersDialog({ data, bulkBlocked, onClose }: { data: LedgerSt
           })}
         </ul>
       )}
+      {settings && <ReminderSettingsDialog data={data} onClose={() => setSettings(false)} onToast={onToast} />}
     </Modal>
   );
 }

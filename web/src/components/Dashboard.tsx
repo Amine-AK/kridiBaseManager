@@ -35,6 +35,7 @@ import { NewClientForm } from "./ClientForms";
 import { PaymentForm } from "./MoneyForms";
 import { ReceiptDialog } from "./ReceiptDialog";
 import { RemindersDialog } from "./RemindersDialog";
+import { ReminderSettingsDialog } from "./ReminderSettings";
 import { SetupScreen } from "./SetupScreen";
 import { SyncBar } from "./SyncBar";
 import { TopMenu } from "./TopMenu";
@@ -82,6 +83,7 @@ type Dialog =
   | { kind: "contacts" }
   | { kind: "approvals" }
   | { kind: "claims" }
+  | { kind: "reminder-texts" }
   | null;
 
 type View = "credit" | "sell" | "stock" | "repairs" | "budget" | "notes";
@@ -338,6 +340,7 @@ export function Dashboard() {
             canBackup={allow("backup")}
             onUsers={allow("owner_only") ? () => setDialog({ kind: "users" }) : undefined}
             onContacts={allow("claims") && data.ledger ? () => setDialog({ kind: "contacts" }) : undefined}
+            onReminderTexts={allow("reminders") && data.ledger ? () => setDialog({ kind: "reminder-texts" }) : undefined}
             onLogout={async () => {
               // Changes not sent yet belong to this user: they must reach the sheet before someone else logs in.
               if (data.pendingCount > 0) {
@@ -672,6 +675,7 @@ export function Dashboard() {
       {dialog?.kind === "sale-ticket" && data.ledger && (
         <SaleTicketDialog lines={data.ledger.sales.filter((x) => x.ticket === dialog.ticket)} notice="تسجل البيع ✓" onClose={() => setDialog(null)} />
       )}
+      {dialog?.kind === "reminder-texts" && data.ledger && <ReminderSettingsDialog data={data} onClose={() => setDialog(null)} onToast={setToast} />}
       {dialog?.kind === "claims" && data.ledger && (
         <Modal title="🏭 خدمة الشركة" className="page" onClose={() => setDialog(null)}>
           <ClaimsView data={data} onToast={setToast} initialFilter={lateCount ? "late" : "open"} />
@@ -685,7 +689,7 @@ export function Dashboard() {
       {dialog?.kind === "backup" && (
         <BackupDialog reminder={dialog.reminder} pending={data.pendingCount} onClose={() => setDialog(null)} onToast={setToast} />
       )}
-      {dialog?.kind === "remind" && data.ledger && <RemindersDialog data={data} bulkBlocked={reminderBlocked} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "remind" && data.ledger && <RemindersDialog data={data} bulkBlocked={reminderBlocked} onClose={() => setDialog(null)} onToast={setToast} />}
       {dialog?.kind === "archive-all" && (
         <Confirm title="أرشفة الخالصين" confirmLabel={`أرشف ${summary.archivable.length}`} onClose={() => setDialog(null)} onConfirm={() => void archiveAll()}>
           <p className="lead">هاد الزبناء خلصو كلشي من أكثر من 3 شهور، غادي يتنقلو للأرشيف مع المشتريات والدفعات ديالهم:</p>

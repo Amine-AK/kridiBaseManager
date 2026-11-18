@@ -338,6 +338,8 @@ export interface Setting {
 export const STICKER_LOOK_KEY = "sticker-look";
 /** After-sales services of the brands (خدمة العملاء): JSON list, see lib/claims.ts. */
 export const SERVICE_CONTACTS_KEY = "service-contacts";
+/** The WhatsApp reminders' texts with [variables] (see lib/reminder-templates.ts). */
+export const REMINDER_TEMPLATES_KEY = "reminder-templates";
 
 export interface Ledger {
   clients: Client[];

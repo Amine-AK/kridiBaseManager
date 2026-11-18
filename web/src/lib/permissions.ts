@@ -1,6 +1,6 @@
 // Rules about who may do what, as pure functions (used by the server routes, and tested).
 
-import { CREDIT_OPS, SERVICE_CONTACTS_KEY, type Ledger, type LedgerOp } from "./ledger";
+import { CREDIT_OPS, REMINDER_TEMPLATES_KEY, SERVICE_CONTACTS_KEY, type Ledger, type LedgerOp } from "./ledger";
 import { describe } from "./approvals";
 import { can, newClientType, seesCost, specialOnly, type ClientType, type Me, type Permission } from "./roles";
 
@@ -31,6 +31,8 @@ export function opAllowed(me: Me, op: LedgerOp): boolean {
     case "setting.save":
       // The brands' after-sales numbers: whoever follows the requests. The default
       // sticker look: whoever prints stickers (owner, stock manager).
+      // The reminders' texts: whoever sends reminders.
+      if (op.key === REMINDER_TEMPLATES_KEY) return any("reminders");
       return op.key === SERVICE_CONTACTS_KEY ? any("claims") : any("stock_add");
     case "stock.adjust":
       // The stock manager adds deliveries; taking stock out needs full stock rights.
