@@ -448,6 +448,19 @@ A main tab that looks like the paper notebook next to the till, for every accoun
 - Tap a line to change it. Only the owner can delete a line.
 - The number of customer requests not done yet shows on the tab.
 - Sheet tab «الكناش» (created on first use).
+- **⏰ Reminders** (so a promise to a customer isn't forgotten under pressure):
+  when writing a line, «⏰ ذكّرني» offers «بعد ساعة», «بعد 3 سوايع», «العشية 18:00»,
+  «غدا 10:00», «بعد 3 أيام», «السيمانة الجاية» or «📅 وقت آخر» (date and time). A
+  «🙋 طلب زبون» gets «غدا 10:00» by default (✕ to remove it). The time shows on
+  the line («⏰ غدا 10:00»). When it comes and the line isn't ticked off:
+  - a red bar on top of every tab «⏰ N تذكير فالكناش: «…»» (tap → الكناش), and a
+    red number on the الكناش tab;
+  - a popup in the app, and a phone notification if the app is in the background
+    (notifications turned on, see below);
+  - a red box «⏰ وقت التذكير» on top of the notebook: «✓ تدار», «⏰ +ساعة», «⏰ غدا»
+    (postpone), 📞 and 💬 to reach the customer.
+  It's shown on every account's device; the filter «⏰ بالتذكير» lists the lines
+  with a reminder. Kept in the last columns of «الكناش» («تاريخ التذكير», «ساعة التذكير»).
 - **Like notifications**: what another account writes, ticks off or changes in the
   notebook is news for you until you open الكناش on that device. The tab shows the
   number in blue; elsewhere in the app a popup says it («🙋 Said كتب طلب زبون: …»);

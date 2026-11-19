@@ -23,7 +23,7 @@ import { RepairsView } from "./RepairsView";
 import { NotesView } from "./NotesView";
 import { reloadNewest } from "@/lib/app-version";
 import { Modal } from "./Modal";
-import { useNoteAlerts } from "./useNoteAlerts";
+import { useNoteAlerts, useNoteReminders } from "./useNoteAlerts";
 import { isOpenRequest } from "@/lib/notes";
 import { ClaimsView, ServiceContactsDialog, useNow } from "./ClaimsView";
 import { claimsByClient, isOpen as claimOpen, lateClaims } from "@/lib/claims";
@@ -214,6 +214,8 @@ export function Dashboard() {
   // The notebook as notifications (what others wrote / ticked / changed).
   const noteAlerts = useNoteAlerts(data, setToast, current === "notes");
   const unreadNotes = noteAlerts.events.length;
+  // Notebook reminders whose time has come (⏰): a red bar on every tab and the tab's count.
+  const dueNotes = useNoteReminders(data, now, setToast, current === "notes");
 
   // A notebook notification tapped (service worker message, or the app opened from it).
   useEffect(() => {
@@ -365,7 +367,9 @@ export function Dashboard() {
               {v.label}
               {v.value === "repairs" && lateCount > 0 && <bdi className="tab-count" title="طلبات خدمة الشركة لي فاتو 48 ساعة">{lateCount}</bdi>}
               {v.value === "notes" &&
-                (unreadNotes > 0 ? (
+                (dueNotes.length > 0 ? (
+                  <bdi className="tab-count" title="تذكيرات جا الوقت ديالهم">{dueNotes.length}</bdi>
+                ) : unreadNotes > 0 ? (
                   <bdi className="tab-count note-unread" title="جديد فالكناش">{unreadNotes}</bdi>
                 ) : (
                   openNotes > 0 && <bdi className="tab-count note-count" title="طلبات الزبناء لي باقي ما تداروش">{openNotes}</bdi>
@@ -385,6 +389,15 @@ export function Dashboard() {
               حدّث دابا
             </button>
           </div>
+        )}
+        {dueNotes.length > 0 && current !== "notes" && (
+          <button type="button" className="remind-due-bar" onClick={() => setView("notes")}>
+            <span>
+              ⏰ <strong>{dueNotes.length}</strong> {dueNotes.length === 1 ? "تذكير" : "تذكيرات"} فالكناش: «{dueNotes[0].text.length > 60 ? `${dueNotes[0].text.slice(0, 60)}…` : dueNotes[0].text}»
+              {dueNotes[0].customer && ` · 👤 ${dueNotes[0].customer}`}
+            </span>
+            <span className="approvals-go">شوف ←</span>
+          </button>
         )}
         <SyncBar state={data} />
 
