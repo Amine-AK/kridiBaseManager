@@ -2,7 +2,23 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { newLedgerId, nowParts, NOTE_KINDS, type Note, type NoteKind } from "@/lib/ledger";
-import { dayLabel, eventText, isOpenRequest, notePages, searchNotes, type NoteEvent, type NoteFilter } from "@/lib/notes";
+import {
+  dayLabel,
+  dueReminders,
+  eventText,
+  isDue,
+  isOpenRequest,
+  notePages,
+  presetTime,
+  REMIND_PRESETS,
+  remindLabel,
+  searchNotes,
+  type NoteEvent,
+  type NoteFilter,
+  type RemindPreset,
+} from "@/lib/notes";
+import { whatsappLink, SHOP } from "@/lib/receipt";
+import { useNow } from "./ClaimsView";
 import { displayDate } from "@/lib/receipt";
 import { ownerForPhone } from "@/lib/repairs";
 import { can } from "@/lib/roles";
@@ -16,6 +32,7 @@ const KIND_ICON: Record<NoteKind, string> = { ملاحظة: "📝", "طلب زب
 const FILTERS: { value: NoteFilter; label: string }[] = [
   { value: "all", label: "الكل" },
   { value: "requests", label: "🙋 طلبات باقية" },
+  { value: "reminders", label: "⏰ بالتذكير" },
   { value: "open", label: "ما تداروش" },
   { value: "done", label: "✓ تدارو" },
 ];
@@ -33,6 +50,8 @@ export function NotesView({ data, onToast, alerts }: { data: LedgerState; onToas
   const [filter, setFilter] = useState<NoteFilter>("all");
   const [shown, setShown] = useState(PAGE_STEP);
   const [editing, setEditing] = useState<Note | null>(null);
+  const now = useNow();
+  const due = dueReminders(ledger.notes, now);
 
   // What others did since the last look: listed on top and highlighted in the pages for as
   // long as the notebook stays open; as soon as it's on screen it counts as seen.
@@ -99,6 +118,19 @@ export function NotesView({ data, onToast, alerts }: { data: LedgerState; onToas
         </div>
       )}
 
+      {due.length > 0 && (
+        <section className="remind-due" aria-label="وقت التذكير">
+          <h3>
+            ⏰ وقت التذكير <bdi dir="ltr">({due.length})</bdi>
+          </h3>
+          <ul>
+            {due.map((n) => (
+              <DueLine key={n.id} data={data} note={n} now={now} onOpen={() => setEditing(n)} onToast={onToast} onTick={() => tick(n)} />
+            ))}
+          </ul>
+        </section>
+      )}
+
       <NoteWriter data={data} onToast={onToast} />
 
       <div className="search-row">
@@ -140,6 +172,7 @@ export function NotesView({ data, onToast, alerts }: { data: LedgerState; onToas
                   </button>
                   <button type="button" className="note-body" onClick={() => setEditing(n)}>
                     {n.kind === "طلب زبون" && <span className="note-kind">🙋 طلب</span>}
+                    {!n.done && n.remindDate && <span className={`note-remind ${isDue(n, now) ? "due" : ""}`}>{remindLabel(n, now)}</span>}
                     <span className="note-text">{n.text}</span>
                     {(n.customer || n.phone) && (
                       <span className="note-meta">
@@ -201,6 +234,8 @@ function NoteWriter({ data, onToast }: { data: LedgerState; onToast: (msg: strin
   const [withCustomer, setWithCustomer] = useState(false);
   const [customer, setCustomer] = useState("");
   const [phone, setPhone] = useState("");
+  // A customer's request gets a reminder tomorrow by default: promises are what gets forgotten.
+  const [remind, setRemind] = useState<Remind>(NO_REMIND);
   const fill = useCustomerFill(data);
 
   function submit(e: FormEvent) {
@@ -221,12 +256,14 @@ function NoteWriter({ data, onToast }: { data: LedgerState; onToast: (msg: strin
         done: false,
         doneBy: "",
         doneAt: "",
+        ...remind,
         author: data.me?.name ?? "",
         createdAt: at,
         updatedAt: at,
       },
     });
-    onToast("✍️ تكتبات فالكناش");
+    onToast(remind.remindDate ? `✍️ تكتبات · ${remindLabel(remind)}` : "✍️ تكتبات فالكناش");
+    setRemind(NO_REMIND);
     setText("");
     setCustomer("");
     setPhone("");
@@ -246,7 +283,10 @@ function NoteWriter({ data, onToast }: { data: LedgerState; onToast: (msg: strin
               aria-pressed={kind === k}
               onClick={() => {
                 setKind(k);
-                if (k === "طلب زبون") setWithCustomer(true);
+                if (k === "طلب زبون") {
+                  setWithCustomer(true);
+                  if (!remind.remindDate) setRemind(presetTime("tomorrow"));
+                }
               }}
             >
               {KIND_ICON[k]} {k}
@@ -285,6 +325,7 @@ function NoteWriter({ data, onToast }: { data: LedgerState; onToast: (msg: strin
             <input aria-label="سمية الزبون" placeholder="السمية" value={customer} onChange={(e) => setCustomer(e.target.value)} />
           </div>
         )}
+        <RemindPicker value={remind} onChange={setRemind} />
         <div className="notebook-tools">
           <button type="submit" className="btn primary small-btn" disabled={!text.trim()}>
             ✍️ كتب فالكناش
@@ -310,7 +351,7 @@ function NoteWriter({ data, onToast }: { data: LedgerState; onToast: (msg: strin
 
 /** A line opened: change it, tick it off, or (owner) tear it out. */
 function NoteEditor({ data, note: n, onClose, onToast }: { data: LedgerState; note: Note; onClose: () => void; onToast: (msg: string) => void }) {
-  const [v, setV] = useState({ text: n.text, kind: n.kind, customer: n.customer, phone: n.phone, done: n.done });
+  const [v, setV] = useState({ text: n.text, kind: n.kind, customer: n.customer, phone: n.phone, done: n.done, remindDate: n.remindDate ?? "", remindTime: n.remindTime ?? "" });
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const fill = useCustomerFill(data);
@@ -384,6 +425,10 @@ function NoteEditor({ data, note: n, onClose, onToast }: { data: LedgerState; no
         <Field id="note-edit-customer" label="سمية الزبون">
           <input id="note-edit-customer" value={v.customer} onChange={(e) => setV({ ...v, customer: e.target.value })} />
         </Field>
+        <div className="field wide">
+          <span>⏰ وقت التذكير</span>
+          <RemindPicker value={{ remindDate: v.remindDate, remindTime: v.remindTime }} onChange={(r) => setV({ ...v, ...r })} />
+        </div>
         <label className="check wide">
           <input type="checkbox" checked={v.done} onChange={(e) => setV({ ...v, done: e.target.checked })} /> ✓ تدارت
         </label>
@@ -404,5 +449,106 @@ function NoteEditor({ data, note: n, onClose, onToast }: { data: LedgerState; no
         </Confirm>
       )}
     </Modal>
+  );
+}
+
+type Remind = { remindDate: string; remindTime: string };
+const NO_REMIND: Remind = { remindDate: "", remindTime: "" };
+
+/** «⏰ ذكّرني»: quick choices (in an hour, tomorrow 10:00…) or a date and time of one's own. */
+function RemindPicker({ value, onChange }: { value: Remind; onChange: (r: Remind) => void }) {
+  const [custom, setCustom] = useState(false);
+  const set = Boolean(value.remindDate);
+  return (
+    <div className="remind-picker">
+      <div className="notebook-tools remind-chips" role="group" aria-label="ذكّرني">
+        <span className="muted small">⏰ ذكّرني:</span>
+        {set && !custom ? (
+          <>
+            <span className="note-remind">{remindLabel(value)}</span>
+            <button type="button" className="link-btn" onClick={() => setCustom(true)}>
+              بدل
+            </button>
+            <button type="button" className="link-btn danger-text" onClick={() => onChange(NO_REMIND)}>
+              ✕ بلا تذكير
+            </button>
+          </>
+        ) : (
+          <>
+            {REMIND_PRESETS.map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                className="chip"
+                onClick={() => {
+                  onChange(presetTime(p.value as RemindPreset));
+                  setCustom(false);
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+            <button type="button" className={`chip ${custom ? "on" : ""}`} onClick={() => setCustom((x) => !x)}>
+              📅 وقت آخر
+            </button>
+            {set && (
+              <button type="button" className="link-btn danger-text" onClick={() => { onChange(NO_REMIND); setCustom(false); }}>
+                ✕ بلا تذكير
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      {custom && (
+        <div className="notebook-who">
+          <input type="date" aria-label="نهار التذكير" value={value.remindDate} onChange={(e) => onChange({ remindDate: e.target.value, remindTime: value.remindTime || "10:00" })} />
+          <input type="time" aria-label="ساعة التذكير" value={value.remindTime} onChange={(e) => onChange({ remindDate: value.remindDate || nowParts().date, remindTime: e.target.value })} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A line whose reminder time has come: done, later, or get in touch with the customer. */
+function DueLine({ data, note: n, now, onOpen, onToast, onTick }: { data: LedgerState; note: Note; now: Date; onOpen: () => void; onToast: (msg: string) => void; onTick: () => void }) {
+  const tel = n.phone.replace(/[^\d+]/g, "");
+  const wa = n.phone ? whatsappLink(n.phone, `السلام عليكم ${n.customer || ""} 👋\nمعاكم ${SHOP.name}.`) : null;
+  function later(p: RemindPreset) {
+    const r = presetTime(p);
+    data.run(`⏰ أجّل · ${n.text.slice(0, 40)}`, { type: "note.update", id: n.id, base: n.updatedAt, patch: r });
+    onToast(`⏰ تأجل · ${remindLabel(r)}`);
+  }
+  return (
+    <li className="remind-due-line">
+      <button type="button" className="remind-due-text" onClick={onOpen}>
+        <strong>{n.text}</strong>
+        <span className="muted small">
+          {remindLabel(n, now)}
+          {n.customer && ` · 👤 ${n.customer}`}
+          {` · ✍️ ${n.author || "—"}`}
+        </span>
+      </button>
+      <div className="remind-due-actions">
+        <button type="button" className="btn primary small-btn" onClick={onTick}>
+          ✓ تدار
+        </button>
+        <button type="button" className="btn small-btn" onClick={() => later("1h")}>
+          ⏰ +ساعة
+        </button>
+        <button type="button" className="btn small-btn" onClick={() => later("tomorrow")}>
+          ⏰ غدا
+        </button>
+        {tel && (
+          <a className="btn small-btn" href={`tel:${tel}`}>
+            📞
+          </a>
+        )}
+        {wa && (
+          <a className="btn whatsapp small-btn" href={wa} target="_blank" rel="noopener noreferrer">
+            💬
+          </a>
+        )}
+      </div>
+    </li>
   );
 }

@@ -285,6 +285,9 @@ export interface Note {
   done: boolean;
   doneBy: string;
   doneAt: string;
+  /** When to remind the shop (shop time: yyyy-mm-dd, HH:mm); none = no reminder. */
+  remindDate?: string;
+  remindTime?: string;
   createdAt: string;
   updatedAt: string;
   /** Who wrote it first, and the account / device of the last change. */
@@ -440,7 +443,7 @@ type OpBody =
   | { type: "approval.decide"; id: string; decision: "accept" | "refuse"; reason: string }
   /** The notebook (الكناش). */
   | { type: "note.add"; note: Note }
-  | { type: "note.update"; id: string; base: string; patch: Partial<Pick<Note, "date" | "time" | "kind" | "text" | "customer" | "phone" | "done">> }
+  | { type: "note.update"; id: string; base: string; patch: Partial<Pick<Note, "date" | "time" | "kind" | "text" | "customer" | "phone" | "done" | "remindDate" | "remindTime">> }
   | { type: "note.delete"; id: string }
   /** The seller who made a waiting change writes (or changes) a note to the owner. */
   | { type: "approval.note"; id: string; note: string }
@@ -581,6 +584,9 @@ function checkNote(n: Note): string | null {
   if (!text(n.text, 2000) || !n.text.trim()) return "كتب شي حاجة";
   if (!text(n.customer, 200) || !text(n.phone, 40)) return "معلومات الزبون غير صحيحة";
   if (typeof n.done !== "boolean" || !text(n.doneBy, 100) || !text(n.doneAt, 40)) return "الحالة غير صحيحة";
+  const rd = n.remindDate ?? "";
+  const rt = n.remindTime ?? "";
+  if (!date(rd) || (rt !== "" && !time(rt)) || (rd === "") !== (rt === "")) return "وقت التذكير غير صحيح";
   return null;
 }
 
@@ -924,7 +930,7 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
       if (!n) return invalid(ledger, "هاد الملاحظة ما بقاتش");
       if (n.updatedAt === op.at) return { ledger, result: "already" };
       if (n.updatedAt !== op.base) return { ledger, result: "conflict", message: CONFLICT };
-      const patch = pick<Note>(op.patch, ["date", "time", "kind", "text", "customer", "phone", "done"]);
+      const patch = pick<Note>(op.patch, ["date", "time", "kind", "text", "customer", "phone", "done", "remindDate", "remindTime"]);
       // Ticking it off records who and when; unticking clears it.
       const tick = patch.done === undefined || patch.done === n.done ? {} : patch.done ? { doneBy: op.by ?? "", doneAt: op.at } : { doneBy: "", doneAt: "" };
       const next: Note = { ...n, ...patch, ...tick, updatedAt: op.at, by: op.by ?? "", origin: op.device ?? "" };

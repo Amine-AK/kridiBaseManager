@@ -2,7 +2,7 @@
 // for («جيب ليا شارجور Type-C»), written by any account and ticked off when done.
 // Pure rules, shared by the screen (components/NotesView.tsx) and the tests.
 
-import type { Note } from "./ledger";
+import { nowParts, type Note } from "./ledger";
 import { displayDate } from "./receipt";
 import { addDays } from "./sheet-logic";
 import { normalizeText } from "./shop";
@@ -10,7 +10,7 @@ import { normalizeText } from "./shop";
 /** A customer's request still to do. */
 export const isOpenRequest = (n: Pick<Note, "kind" | "done">) => n.kind === "طلب زبون" && !n.done;
 
-export type NoteFilter = "all" | "requests" | "open" | "done";
+export type NoteFilter = "all" | "requests" | "reminders" | "open" | "done";
 
 const digits = (s: string) => s.replace(/\D/g, "").replace(/^(00)?212/, "0");
 
@@ -21,6 +21,7 @@ export function searchNotes(notes: Note[], query: string, filter: NoteFilter = "
   return notes
     .filter((n) => {
       if (filter === "requests" && !isOpenRequest(n)) return false;
+      if (filter === "reminders" && (n.done || !remindKey(n))) return false;
       if (filter === "open" && n.done) return false;
       if (filter === "done" && !n.done) return false;
       if (!q) return true;
@@ -79,4 +80,64 @@ export function eventText(e: NoteEvent): string {
   const icon = e.kind === "new" ? (e.note.kind === "طلب زبون" ? "🙋" : "✍️") : e.kind === "done" ? "✓" : "✏️";
   const text = e.note.text.length > 80 ? `${e.note.text.slice(0, 80)}…` : e.note.text;
   return `${icon} ${e.by} ${what}: ${text}`;
+}
+
+// ---------------------------------------------------------------- reminders (⏰)
+// A line can carry a reminder time (shop time). From then on, until it is ticked
+// off, it is «due»: shown on top of the notebook, in a red bar over the app, and
+// as a notification. Times are compared as shop-time text "yyyy-mm-dd HH:mm".
+
+/** "yyyy-mm-dd HH:mm" of the reminder, "" when none. */
+export const remindKey = (n: Pick<Note, "remindDate" | "remindTime">) => (n.remindDate && n.remindTime ? `${n.remindDate} ${n.remindTime}` : "");
+
+/** Now in shop time, as "yyyy-mm-dd HH:mm". */
+export function shopNow(now = new Date()): string {
+  const p = nowParts(now);
+  return `${p.date} ${p.time}`;
+}
+
+/** Its time has come and it isn't done yet. */
+export const isDue = (n: Note, now = new Date()) => !n.done && remindKey(n) !== "" && remindKey(n) <= shopNow(now);
+
+/** Reminders whose time has come, oldest first. */
+export const dueReminders = (notes: Note[], now = new Date()) => notes.filter((n) => isDue(n, now)).sort((a, b) => remindKey(a).localeCompare(remindKey(b)));
+
+/** Reminders still to come, soonest first. */
+export const upcomingReminders = (notes: Note[], now = new Date()) => {
+  const at = shopNow(now);
+  return notes.filter((n) => !n.done && remindKey(n) > at).sort((a, b) => remindKey(a).localeCompare(remindKey(b)));
+};
+
+export type RemindPreset = "1h" | "3h" | "tonight" | "tomorrow" | "3days" | "week";
+
+export const REMIND_PRESETS: { value: RemindPreset; label: string }[] = [
+  { value: "1h", label: "بعد ساعة" },
+  { value: "3h", label: "بعد 3 سوايع" },
+  { value: "tonight", label: "العشية 18:00" },
+  { value: "tomorrow", label: "غدا 10:00" },
+  { value: "3days", label: "بعد 3 أيام" },
+  { value: "week", label: "السيمانة الجاية" },
+];
+
+/** The reminder time of a quick choice, from now (shop time). */
+export function presetTime(p: RemindPreset, now = new Date()): { remindDate: string; remindTime: string } {
+  if (p === "1h" || p === "3h") {
+    const t = nowParts(new Date(now.getTime() + (p === "1h" ? 1 : 3) * 3_600_000));
+    return { remindDate: t.date, remindTime: t.time };
+  }
+  const today = nowParts(now);
+  if (p === "tonight") {
+    // Already past 18:00: tomorrow evening.
+    return { remindDate: today.time < "18:00" ? today.date : addDays(today.date, 1), remindTime: "18:00" };
+  }
+  const days = p === "tomorrow" ? 1 : p === "3days" ? 3 : 7;
+  return { remindDate: addDays(today.date, days), remindTime: "10:00" };
+}
+
+/** «⏰ اليوم 15:00», «⏰ غدا 10:00», «⏰ 25/11 10:00». */
+export function remindLabel(n: Pick<Note, "remindDate" | "remindTime">, now = new Date()): string {
+  if (!remindKey(n)) return "";
+  const today = nowParts(now).date;
+  const day = n.remindDate === today ? "اليوم" : n.remindDate === addDays(today, 1) ? "غدا" : n.remindDate === addDays(today, -1) ? "البارح" : `${n.remindDate!.slice(8, 10)}/${n.remindDate!.slice(5, 7)}`;
+  return `⏰ ${day} ${n.remindTime}`;
 }

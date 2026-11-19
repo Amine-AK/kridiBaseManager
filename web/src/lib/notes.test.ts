@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { applyOp, emptyLedger, type LedgerOp, type Note } from "./ledger";
-import { dayLabel, eventText, isOpenRequest, noteEvents, notePages, searchNotes } from "./notes";
+import { applyOp, emptyLedger, nowParts, type LedgerOp, type Note } from "./ledger";
+import { addDays } from "./sheet-logic";
+import { dayLabel, dueReminders, eventText, isDue, isOpenRequest, noteEvents, notePages, presetTime, remindLabel, searchNotes, upcomingReminders } from "./notes";
 import { opAllowed } from "./permissions";
 import type { Me } from "./roles";
 
@@ -61,5 +62,45 @@ describe("notebook", () => {
     expect(eventText(ev[0])).toBe("✏️ Said بدل: الضو طافي");
     // Seen later: nothing new.
     expect(noteEvents(list, "2026-11-16T13:00:00.000Z", "Mustapha")).toEqual([]);
+  });
+  it("reminders: due once their time (shop time) has come, until ticked off", () => {
+    const now = new Date("2026-11-19T13:00:00Z");
+    const at = (minutes: number) => {
+      const p = nowParts(new Date(now.getTime() + minutes * 60_000));
+      return { remindDate: p.date, remindTime: p.time };
+    };
+    const list = [
+      note({ id: "N-1", ...at(-30) }),
+      note({ id: "N-2", ...at(30) }),
+      note({ id: "N-3", ...at(-2000), done: true }),
+      note({ id: "N-4" }),
+      note({ id: "N-5", ...at(-3000) }),
+    ];
+    expect(dueReminders(list, now).map((n) => n.id)).toEqual(["N-5", "N-1"]);
+    expect(upcomingReminders(list, now).map((n) => n.id)).toEqual(["N-2"]);
+    expect(isDue(list[3], now)).toBe(false);
+    const today = nowParts(now).date;
+    expect(remindLabel({ remindDate: today, remindTime: "13:30" }, now)).toBe("⏰ اليوم 13:30");
+    expect(remindLabel({ remindDate: addDays(today, 1), remindTime: "10:00" }, now)).toBe("⏰ غدا 10:00");
+    const later = addDays(today, 6);
+    expect(remindLabel({ remindDate: later, remindTime: "10:00" }, now)).toBe(`⏰ ${later.slice(8, 10)}/${later.slice(5, 7)} 10:00`);
+  });
+  it("quick choices for the reminder time", () => {
+    const now = new Date("2026-11-19T13:00:00Z");
+    const p = nowParts(now);
+    const in1h = nowParts(new Date(now.getTime() + 3_600_000));
+    expect(presetTime("1h", now)).toEqual({ remindDate: in1h.date, remindTime: in1h.time });
+    expect(presetTime("tomorrow", now)).toEqual({ remindDate: addDays(p.date, 1), remindTime: "10:00" });
+    expect(presetTime("week", now)).toEqual({ remindDate: addDays(p.date, 7), remindTime: "10:00" });
+    const tonight = presetTime("tonight", now);
+    expect(tonight.remindTime).toBe("18:00");
+    expect(tonight.remindDate).toBe(p.time < "18:00" ? p.date : addDays(p.date, 1));
+  });
+  it("keeps the reminder through the sheet and checks it", () => {
+    let l = applyOp(emptyLedger(), op({ type: "note.add", note: note({ remindDate: "2026-11-20", remindTime: "10:00" }) })).ledger;
+    expect(l.notes[0].remindTime).toBe("10:00");
+    expect(applyOp(emptyLedger(), op({ type: "note.add", note: note({ id: "N-BBBB0001", remindDate: "2026-11-20", remindTime: "" }) })).result).toBe("invalid");
+    l = applyOp(l, op({ type: "note.update", id: "N-AAAA0001", base: l.notes[0].updatedAt, patch: { remindDate: "", remindTime: "" } })).ledger;
+    expect(l.notes[0].remindDate).toBe("");
   });
 });

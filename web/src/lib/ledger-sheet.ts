@@ -92,7 +92,7 @@ export const HEADERS: Record<TableKey, string[]> = {
   ],
   notes: [
     "رقم", "التاريخ", "الساعة", "النوع", "الملاحظة", "الزبون", "الهاتف", "تدارت", "دارها", "وقت الإنجاز",
-    "كتبها", "تاريخ الإضافة", "آخر تعديل", "آخر تعديل من", "الجهاز",
+    "كتبها", "تاريخ الإضافة", "آخر تعديل", "آخر تعديل من", "الجهاز", "تاريخ التذكير", "ساعة التذكير",
   ],
   approvals: [
     "رقم الطلب", "التاريخ", "الساعة", "البائع", "الجهاز", "رقم الزبون", "الزبون", "التعديل", "المبلغ",
@@ -251,6 +251,8 @@ export function rowToNote(r: unknown[]): Note | null {
     updatedAt: s(r[12]),
     by: s(r[13]),
     origin: s(r[14]),
+    // Older rows have no reminder.
+    ...(d(r[15]) && s(r[16]) ? { remindDate: d(r[15]), remindTime: t(r[16]) } : {}),
   };
 }
 
@@ -516,7 +518,7 @@ export function ledgerToRows(ledger: Ledger, today = todayISO()): Record<TableKe
       x.id,
       [
         x.id, x.date, x.time, x.kind, x.text, x.customer, x.phone, x.done ? "✓" : "", x.doneBy, x.doneAt,
-        x.author, x.createdAt, x.updatedAt, x.by ?? "", x.origin ?? "",
+        x.author, x.createdAt, x.updatedAt, x.by ?? "", x.origin ?? "", x.remindDate ?? "", x.remindTime ?? "",
       ],
     ]),
   );
