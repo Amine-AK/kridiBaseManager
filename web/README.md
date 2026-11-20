@@ -454,10 +454,9 @@ A main tab that looks like the paper notebook next to the till, for every accoun
 - The number of customer requests not done yet shows on the tab.
 - Sheet tab «الكناش» (created on first use).
 - **⏰ Reminders** (so a promise to a customer isn't forgotten under pressure):
-  when writing a line, «⏰ ذكّرني» offers «بعد ساعة», «بعد 3 سوايع», «العشية 18:00»,
-  «غدا 10:00», «بعد 3 أيام», «السيمانة الجاية» or «📅 وقت آخر» (date and time). A
-  «🙋 طلب زبون» gets «غدا 10:00» by default (✕ to remove it). The time shows on
-  the line («⏰ غدا 10:00»). When it comes and the line isn't ticked off:
+  when writing a line, tap «⏰ ذكّرني»: the phone's date-and-time picker opens,
+  choose when to be reminded. No time is set by itself; «✕ بلا تذكير» removes it.
+  The time shows on the button and on the line («⏰ 25/11 16:30»). When it comes and the line isn't ticked off:
   - a red bar on top of every tab «⏰ N تذكير فالكناش: «…»» (tap → الكناش), and a
     red number on the الكناش tab;
   - a popup in the app, and a phone notification if the app is in the background

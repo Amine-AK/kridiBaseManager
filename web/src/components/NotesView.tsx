@@ -10,7 +10,6 @@ import {
   isOpenRequest,
   notePages,
   presetTime,
-  REMIND_PRESETS,
   remindLabel,
   searchNotes,
   type NoteEvent,
@@ -234,7 +233,6 @@ function NoteWriter({ data, onToast }: { data: LedgerState; onToast: (msg: strin
   const [withCustomer, setWithCustomer] = useState(false);
   const [customer, setCustomer] = useState("");
   const [phone, setPhone] = useState("");
-  // A customer's request gets a reminder tomorrow by default: promises are what gets forgotten.
   const [remind, setRemind] = useState<Remind>(NO_REMIND);
   const fill = useCustomerFill(data);
 
@@ -283,10 +281,7 @@ function NoteWriter({ data, onToast }: { data: LedgerState; onToast: (msg: strin
               aria-pressed={kind === k}
               onClick={() => {
                 setKind(k);
-                if (k === "طلب زبون") {
-                  setWithCustomer(true);
-                  if (!remind.remindDate) setRemind(presetTime("tomorrow"));
-                }
+                if (k === "طلب زبون") setWithCustomer(true);
               }}
             >
               {KIND_ICON[k]} {k}
@@ -455,55 +450,32 @@ function NoteEditor({ data, note: n, onClose, onToast }: { data: LedgerState; no
 type Remind = { remindDate: string; remindTime: string };
 const NO_REMIND: Remind = { remindDate: "", remindTime: "" };
 
-/** «⏰ ذكّرني»: quick choices (in an hour, tomorrow 10:00…) or a date and time of one's own. */
+/**
+ * «⏰ ذكّرني»: one button. The phone's own date-and-time field lies over it,
+ * invisible, so a tap opens the system picker on every phone (iPhone too).
+ */
 function RemindPicker({ value, onChange }: { value: Remind; onChange: (r: Remind) => void }) {
-  const [custom, setCustom] = useState(false);
-  const set = Boolean(value.remindDate);
+  const set = Boolean(value.remindDate && value.remindTime);
+  const now = nowParts();
   return (
-    <div className="remind-picker">
-      <div className="notebook-tools remind-chips" role="group" aria-label="ذكّرني">
-        <span className="muted small">⏰ ذكّرني:</span>
-        {set && !custom ? (
-          <>
-            <span className="note-remind">{remindLabel(value)}</span>
-            <button type="button" className="link-btn" onClick={() => setCustom(true)}>
-              بدل
-            </button>
-            <button type="button" className="link-btn danger-text" onClick={() => onChange(NO_REMIND)}>
-              ✕ بلا تذكير
-            </button>
-          </>
-        ) : (
-          <>
-            {REMIND_PRESETS.map((p) => (
-              <button
-                key={p.value}
-                type="button"
-                className="chip"
-                onClick={() => {
-                  onChange(presetTime(p.value as RemindPreset));
-                  setCustom(false);
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
-            <button type="button" className={`chip ${custom ? "on" : ""}`} onClick={() => setCustom((x) => !x)}>
-              📅 وقت آخر
-            </button>
-            {set && (
-              <button type="button" className="link-btn danger-text" onClick={() => { onChange(NO_REMIND); setCustom(false); }}>
-                ✕ بلا تذكير
-              </button>
-            )}
-          </>
-        )}
-      </div>
-      {custom && (
-        <div className="notebook-who">
-          <input type="date" aria-label="نهار التذكير" value={value.remindDate} onChange={(e) => onChange({ remindDate: e.target.value, remindTime: value.remindTime || "10:00" })} />
-          <input type="time" aria-label="ساعة التذكير" value={value.remindTime} onChange={(e) => onChange({ remindDate: value.remindDate || nowParts().date, remindTime: e.target.value })} />
-        </div>
+    <div className="notebook-tools remind-chips">
+      <span className={`chip remind-btn ${set ? "on" : ""}`}>
+        {set ? remindLabel(value) : "⏰ ذكّرني"}
+        <input
+          type="datetime-local"
+          aria-label={set ? `بدل وقت التذكير (${remindLabel(value)})` : "ذكّرني: اختار النهار والساعة"}
+          min={`${now.date}T${now.time}`}
+          value={set ? `${value.remindDate}T${value.remindTime}` : ""}
+          onChange={(e) => {
+            const [d, t] = e.target.value.split("T");
+            onChange(d && t ? { remindDate: d, remindTime: t.slice(0, 5) } : NO_REMIND);
+          }}
+        />
+      </span>
+      {set && (
+        <button type="button" className="link-btn danger-text" onClick={() => onChange(NO_REMIND)}>
+          ✕ بلا تذكير
+        </button>
       )}
     </div>
   );
