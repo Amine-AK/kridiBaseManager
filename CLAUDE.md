@@ -41,7 +41,8 @@ reminders. Installable PWA, used on phones and the shop PC, works offline.
   `scanner-camera`, `backup-last`, `backup-snooze`, `device-id`,
   `notes-seen` (account → ISO time الكناش was last looked at), `reminder-contacted`
   (customer → day + how they were reminded by hand today), `reminder-template` / `reminder-audio`
-  (text and voice message chosen last in the reminders). IndexedDB also keeps `reminder-audios`
+  (text and voice message chosen last in the reminders), `tab-order` (main tabs order, JSON list of
+  view names; the first one is where the app opens). IndexedDB also keeps `reminder-audios`
   (voice messages recorded on the device, Blobs: too big for the sheet),
   `label-print-test` (old, migrated). The ledger snapshot and the queue of
   unsent ops are in IndexedDB (`ledger-snapshot`, `ledger-queue`).
@@ -116,7 +117,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 
 | Task / feature | File(s) |
 |---|---|
-| App shell, main tabs (الكريدي / البيع / المخزون / الإصلاح / الكناش (every account, stock role too; badge = open customer requests) = sub-tabs الإصلاح + خدمة الشركة, `REPAIR_TABS`, with the count of late requests / الميزانية = sub-tabs الصندوق + التقارير, `BUDGET_TABS`), approvals bar in الكريدي, ⏳ on customers with waiting changes, after-sales in الكريدي for accounts with `claims` (summary card `.claim-stat` red when late + red bar `.claims-late-bar` → `ClaimsView` in a full-screen `Modal` with `initialFilter`; `ClaimFlag` ⏰ / 🏭 per customer from `claimsByClient`; summary classes `four` / `trio`), customer list (phone: `ClientRow` lines, PC: `ClientCard` cards, switch `useIsPhone` < 640 px), search | `components/Dashboard.tsx` (`VIEWS`) |
+| App shell, main tabs (الكريدي / البيع / المخزون / الإصلاح / الكناش (every account, stock role too; badge = open customer requests) = sub-tabs الإصلاح + خدمة الشركة, `REPAIR_TABS`, with the count of late requests / الميزانية = sub-tabs الصندوق + التقارير, `BUDGET_TABS`), approvals bar in الكريدي, ⏳ on customers with waiting changes, after-sales in الكريدي for accounts with `claims` (summary card `.claim-stat` red when late + red bar `.claims-late-bar` → `ClaimsView` in a full-screen `Modal` with `initialFilter`; `ClaimFlag` ⏰ / 🏭 per customer from `claimsByClient`; summary classes `four` / `trio`), customer list (phone: `ClientRow` lines, PC: `ClientCard` cards, switch `useIsPhone` < 640 px), search. Tabs order per device: ⚙️ «↕️ ترتيب الأقسام» (`TabOrderDialog`, ↑ / ↓, «↩️ الترتيب العادي»), `orderTabs(viewsFor(me), tabOrder)`; `view` state starts "" so the app opens on the first tab of that order (a tab chosen in this browser tab, sessionStorage `view`, wins) | `components/Dashboard.tsx` (`VIEWS`), `components/TabOrderDialog.tsx`, `lib/tab-order.ts` (pure, tested) |
 | Customer page (purchases, payments, delete; section «🔧 الإصلاح وخدمة الشركة»: their after-sales requests and repairs (`customerFollowUps`: by account or any of their numbers), opened in place (`ClaimPanel`, `RepairPanel`), «🏭 ريكلاماسيون» and «🔧 إصلاح جديد» (prefilled `RepairForm initial`); the open-request flag on purchases; banner of sellers' waiting changes / notes / refusals, ⏳ rows, owner can't edit them until deciding) | `components/ClientDetail.tsx` |
 | Add / edit customer, instalment (الطريطة) | `components/ClientForms.tsx` |
 | Add purchase, record / edit payment (split hint, next due date) | `components/MoneyForms.tsx` |
@@ -148,7 +149,7 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 | Route protection (what needs login) | `src/proxy.ts` (matcher: login, PWA files, `/scanner/` are public) |
 | Offline / PWA (pages: network if it answers within 4 s, else the saved copy; an open app never reloads itself, so each build has `NEXT_PUBLIC_APP_VERSION` (next.config.ts, Vercel commit) sent as `version` by `/api/data`; an older page shows «🔄 كاينة نسخة جديدة» → `reloadNewest` clears the saved pages and reloads, only on a tap) | `lib/app-version.ts`, `public/sw.js` (cache version `VERSION`), `components/RegisterServiceWorker.tsx`, `components/InstallButton.tsx`, `app/manifest.ts`, `lib/idb.ts` |
 | Sync state bar, refused changes (who / device / what differs, filtered by permissions) | `components/SyncBar.tsx`, `lib/change-origin.ts` |
-| Header menu (users, «💬 رسائل التذكير» for accounts with `reminders`, «🏭 خدمة العملاء» brands' numbers for accounts with `claims`, backup, theme, logout) | `components/TopMenu.tsx`; theme `lib/theme.ts` |
+| Header menu (users, «↕️ ترتيب الأقسام» for accounts with more than one tab, «💬 رسائل التذكير» for accounts with `reminders`, «🏭 خدمة العملاء» brands' numbers for accounts with `claims`, backup, theme, logout) | `components/TopMenu.tsx`; theme `lib/theme.ts` |
 | Excel backup (every tab except users; each cell kept under Excel's 32 767 chars by `fitCell`, so pictures stay ≤ 32 000: `MAX_PHOTO_LENGTH`) | `lib/xlsx.ts`, `lib/backup.ts`, `components/BackupDialog.tsx`, `app/api/export` |
 | Archive (old customers) | `components/ArchiveView.tsx`, `app/api/archive/*`, `lib/store.ts` |
 | Sheets API client / env vars | `lib/sheets.ts`, `lib/env.ts` |
