@@ -1,7 +1,9 @@
 // The barcode reader: the browser's own BarcodeDetector when it reads all
-// product barcode formats (Chrome on Android), else the `barcode-detector` ponyfill (ZXing-C++
-// in WebAssembly: iPhone, PCs). Works in a page and in a Web Worker.
+// product barcode formats (Chrome on Android), else ZXing-C++ in WebAssembly
+// (zxing-wasm: iPhone, PCs), called directly so each frame can be read fast or
+// hard (src/scanner/effort.ts). Works in a page and in a Web Worker.
 
+import { fromZXing, zxingOptions, type Effort } from "./effort";
 import { PRODUCT_FORMATS, SCAN_FORMATS } from "./formats";
 
 /** Our copy of the reader's .wasm (copied from node_modules by scripts/copy-zxing-wasm.mjs): works offline, no CDN. */
@@ -13,9 +15,11 @@ export interface Detected {
 }
 
 export interface Detector {
-  detect(source: ImageBitmapSource): Promise<Detected[]>;
   /** "native" or "wasm", for diagnostics. */
   kind: "native" | "wasm";
+  /** What detect() takes: an image (native) or its pixels (ZXing). */
+  input: "image" | "pixels";
+  detect(source: ImageBitmapSource | ImageData, effort: Effort): Promise<Detected[]>;
 }
 
 interface DetectorClass {
@@ -37,19 +41,26 @@ export async function createDetector(): Promise<Detector> {
       // Native when it reads all product barcodes; it then reads whichever of the others it can.
       if (PRODUCT_FORMATS.every((f) => supported.includes(f))) {
         const d = new Native({ formats: formats.filter((f) => supported.includes(f)) });
-        return { kind: "native", detect: (src) => d.detect(src) };
+        return { kind: "native", input: "image", detect: (src) => d.detect(src as ImageBitmapSource) };
       }
     } catch {
       // Fall through to the WebAssembly reader.
     }
   }
-  const { BarcodeDetector, prepareZXingModule } = await import("barcode-detector/ponyfill");
+  const { prepareZXingModule, readBarcodes } = await import("zxing-wasm/reader");
   const wasmUrl = new URL(WASM_PATH, globalThis.location.origin).href;
   // Load the .wasm from our own server now (fails here, clearly, if it can't).
   await prepareZXingModule({
     overrides: { locateFile: (path: string, prefix: string) => (path.endsWith(".wasm") ? wasmUrl : prefix + path) },
     fireImmediately: true,
   });
-  const d = new BarcodeDetector({ formats });
-  return { kind: "wasm", detect: (src) => d.detect(src) };
+  const options = { fast: zxingOptions(formats, "fast"), hard: zxingOptions(formats, "hard") };
+  return {
+    kind: "wasm",
+    input: "pixels",
+    async detect(src, effort) {
+      const results = await readBarcodes(src as ImageData, options[effort] as Parameters<typeof readBarcodes>[1]);
+      return results.filter((r) => r.isValid !== false && r.text).map((r) => ({ format: fromZXing(r.format), rawValue: r.text }));
+    },
+  };
 }

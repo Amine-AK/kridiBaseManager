@@ -2,11 +2,12 @@
 // browser can (ImageBitmap crop, transferred), else on the main thread.
 
 import type { Detected } from "./detector";
+import type { Effort } from "./effort";
 import type { Rect } from "./roi";
 import type { WorkerIn, WorkerOut } from "./decoder.worker";
 
 export interface FrameDecoder {
-  decode(video: HTMLVideoElement, roi: Rect): Promise<Detected[]>;
+  decode(video: HTMLVideoElement, roi: Rect, effort: Effort): Promise<Detected[]>;
   dispose(): void;
   where: "worker" | "main";
 }
@@ -60,14 +61,14 @@ async function workerDecoder(): Promise<FrameDecoder> {
   });
   return {
     where: "worker",
-    async decode(video, roi) {
+    async decode(video, roi, effort) {
       const size = cropSize(roi);
       // Throws if the browser can't crop a video frame: the caller sees no codes for that frame.
       const bitmap = await createImageBitmap(video, roi.x, roi.y, roi.w, roi.h, { resizeWidth: size.w, resizeHeight: size.h, resizeQuality: "high" });
       const id = nextId++;
       return new Promise<Detected[]>((resolve) => {
         pending.set(id, resolve);
-        worker.postMessage({ type: "decode", id, bitmap } satisfies WorkerIn, [bitmap]);
+        worker.postMessage({ type: "decode", id, bitmap, effort } satisfies WorkerIn, [bitmap]);
       });
     },
     dispose() {
@@ -85,14 +86,15 @@ async function mainThreadDecoder(): Promise<FrameDecoder> {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   return {
     where: "main",
-    async decode(video, roi) {
+    async decode(video, roi, effort) {
       if (!ctx) return [];
       const size = cropSize(roi);
       canvas.width = size.w;
       canvas.height = size.h;
       ctx.drawImage(video, roi.x, roi.y, roi.w, roi.h, 0, 0, size.w, size.h);
       try {
-        return await detector.detect(canvas);
+        const source = detector.input === "pixels" ? ctx.getImageData(0, 0, size.w, size.h) : canvas;
+        return await detector.detect(source, effort);
       } catch {
         return [];
       }
