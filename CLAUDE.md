@@ -160,12 +160,14 @@ UI calls data.run(label, ...ops)  →  op queued, applied locally (optimistic), 
 
 - `formats.ts`: `PRODUCT_FORMATS` (EAN/UPC), `QR_FORMATS`, `SN_FORMATS`, `codeKind()`, `isValidRead()` (check digits).
 - `confirm.ts`: accept after 2 identical reads; same code ignored while in view / 1.5 s; `resume()`.
-- `roi.ts`: guide rectangle (80% × 35%) → video pixels (object-fit cover).
-- `detector.ts`: native `BarcodeDetector` or `barcode-detector` ponyfill; `.wasm` from `/scanner/zxing_reader.wasm`.
-- `decoder.worker.ts` + `decoder.ts`: decode in a Web Worker (ImageBitmap crop), main-thread fallback.
+- `roi.ts`: guide rectangle (80% × 35%) → video pixels (object-fit cover); `recoveryRoiInVideo` = centred square (upright barcodes).
+- `effort.ts`: progressive decoding. "fast" frames = ZXing with `tryHarder/tryRotate/tryInvert/tryDownscale` off, 1 symbol, on the strip (measured 3–5× faster per frame than ZXing's all-on defaults); after `RECOVER_AFTER_MS` (700) without a read, one frame in `HARD_EVERY` (3) is "hard": all passes on, square region. `textMode: "Plain"` keeps the text the old ponyfill gave (UPC-A as 13-digit EAN), so stock codes still match. Tested against the real wasm (`effort.test.ts`: an upright EAN-13 is missed fast, read hard).
+- `detector.ts`: native `BarcodeDetector` (Android Chrome; only the region changes with the effort) or **zxing-wasm called directly** (`readBarcodes` on pixels, options from `effort.ts`; the `barcode-detector` ponyfill was dropped: it forced ZXing's slow options on every frame); `.wasm` from `/scanner/zxing_reader.wasm`.
+- `decoder.worker.ts` + `decoder.ts`: decode in a Web Worker (ImageBitmap crop → pixels on an OffscreenCanvas for ZXing), main-thread fallback; each frame carries its effort.
 - `camera.ts`: secure-context / errors, best rear lens (saved), focus / zoom / exposure / torch.
 - `session.ts`: frame loop (`requestVideoFrameCallback`, drop frames while busy), pause, hint, cleanup.
-- The `.wasm` is copied by `web/scripts/copy-zxing-wasm.mjs` (postinstall / predev / prebuild) into
+- The `.wasm` is copied by `web/scripts/copy-zxing-wasm.mjs` (postinstall / predev / prebuild) from the
+  direct dependency `zxing-wasm` (exact version; its package.json isn't exported, so a fixed path) into
   `web/public/scanner/` (git-ignored).
 
 ## Planned, not now

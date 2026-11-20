@@ -143,8 +143,8 @@ was set up before them):
   The code can also be typed. A QR code must fit inside the guide rectangle.
 - **Scanner engine (`src/scanner/`):**
   - Reader: the browser's own `BarcodeDetector` when it reads all product
-    barcode formats (Chrome on Android), else the `barcode-detector` ponyfill (ZXing-C++ in
-    WebAssembly: iPhone, PCs). The `.wasm` (~0.9 MB) is served by the app from
+    barcode formats (Chrome on Android), else ZXing-C++ in WebAssembly called directly
+    (`zxing-wasm`: iPhone, PCs). The `.wasm` (~0.9 MB) is served by the app from
     `/scanner/zxing_reader.wasm` (copied from `node_modules` by
     `scripts/copy-zxing-wasm.mjs` on install / dev / build, not committed), kept
     by the service worker for offline use, and reachable before login.
@@ -156,6 +156,11 @@ was set up before them):
     on the device. Then, when the camera has them: continuous focus, 2× zoom
     (hold the phone farther, in focus), focus / exposure on the centre, exposure
     −⅓ EV against lamp glare, and a 🔦 torch button.
+  - **Progressive decoding** (`effort.ts`): normal frames are read fast (ZXing's
+    extra passes off: measured 3–5× faster per frame than the old all-on reading).
+    After 0.7 s without a read, one frame in three tries hard on a centred square:
+    rotations (a barcode held **upright** now reads), inverted colours, downscaled
+    copies. Fast frames continue in between.
   - A code counts after 2 identical reads; EAN / UPC check digits are verified.
     After 3 s without a read a hint shows (`SCAN_HINT` in `BarcodeScanner.tsx`).
   - Clear messages for: no HTTPS, permission refused, no camera, camera busy.

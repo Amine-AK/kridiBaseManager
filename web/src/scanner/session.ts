@@ -6,7 +6,8 @@ import { closeCamera, openCamera, setTorch } from "./camera";
 import { createConfirmer } from "./confirm";
 import { createFrameDecoder, type FrameDecoder } from "./decoder";
 import { codeKind, isValidRead, type CodeKind } from "./formats";
-import { roiInVideo } from "./roi";
+import { chooseEffort } from "./effort";
+import { recoveryRoiInVideo, roiInVideo } from "./roi";
 
 /** No code read for this long: show the hint. */
 export const HINT_AFTER_MS = 3000;
@@ -59,6 +60,8 @@ export async function startScanSession({ video, onCode, onHint, signal, paused =
   const confirmer = createConfirmer();
   let isPaused = paused;
   let busy = false;
+  // Frames decoded since the start: one in a few becomes a hard one in recovery.
+  let frameNo = 0;
   let stopped = false;
   let frameId = 0;
   let lastReadAt = performance.now();
@@ -72,10 +75,12 @@ export async function startScanSession({ video, onCode, onHint, signal, paused =
 
   async function decodeOnce() {
     if (!decoder || v.readyState < 2 || !v.videoWidth) return;
-    const roi = roiInVideo(v.videoWidth, v.videoHeight, v.clientWidth, v.clientHeight);
+    const effort = chooseEffort(performance.now(), lastReadAt, frameNo++);
+    // Recovery reads a centred square: a barcode held upright fits there, not in the strip.
+    const roi = (effort === "hard" ? recoveryRoiInVideo : roiInVideo)(v.videoWidth, v.videoHeight, v.clientWidth, v.clientHeight);
     let codes;
     try {
-      codes = await decoder.decode(v, roi);
+      codes = await decoder.decode(v, roi, effort);
     } catch {
       return;
     }
