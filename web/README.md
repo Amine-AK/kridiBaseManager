@@ -491,6 +491,15 @@ A main tab that looks like the paper notebook next to the till, for every accoun
   زبون» turns the sale into a credit sale with what was given as the advance. In a
   credit sale, an advance that covers everything offers «💵 سجلها بيع كاش».
 
+### ↕️ Order of the main tabs
+
+⚙️ → «↕️ ترتيب الأقسام»: move each main tab (الكريدي, البيع, المخزون, الإصلاح,
+الميزانية, الكناش) up or down with ↑ / ↓. The bar follows at once; the **first**
+tab is the one the app opens on. The order is kept on the device (each phone /
+PC its own, localStorage `tab-order`); «↩️ الترتيب العادي» goes back to the
+default. An account only sees and orders the tabs it may open; a tab added in a
+later version comes after the chosen ones.
+
 ### 💬 Reminder texts and voice messages
 
 ⚙️ → «💬 رسائل التذكير» (accounts that send reminders):

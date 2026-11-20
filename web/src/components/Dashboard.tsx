@@ -21,6 +21,8 @@ import { SaleTicketDialog } from "./SaleTicket";
 import { StockView } from "./StockView";
 import { RepairsView } from "./RepairsView";
 import { NotesView } from "./NotesView";
+import { TabOrderDialog } from "./TabOrderDialog";
+import { orderTabs, readTabOrder, saveTabOrder } from "@/lib/tab-order";
 import { reloadNewest } from "@/lib/app-version";
 import { Modal } from "./Modal";
 import { useNoteAlerts, useNoteReminders } from "./useNoteAlerts";
@@ -84,6 +86,7 @@ type Dialog =
   | { kind: "approvals" }
   | { kind: "claims" }
   | { kind: "reminder-texts" }
+  | { kind: "tab-order" }
   | null;
 
 type View = "credit" | "sell" | "stock" | "repairs" | "budget" | "notes";
@@ -137,7 +140,9 @@ export function Dashboard() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
-  const [view, setViewState] = useState<View>("credit");
+  // "" until a tab is chosen: the first tab of this device's order then shows.
+  const [view, setViewState] = useState<View | "">("");
+  const [tabOrder, setTabOrder] = useState<string[]>([]);
   const phone = useIsPhone();
   const [hideDebt, toggleDebt] = useHiddenAmount("credit-total");
 
@@ -146,6 +151,7 @@ export function Dashboard() {
   const now = useNow();
 
   useEffect(() => {
+    setTabOrder(readTabOrder());
     try {
       const saved = sessionStorage.getItem(VIEW_KEY);
       // Saved before الميزانية existed: «الصندوق» / «التقارير» open in it.
@@ -185,9 +191,9 @@ export function Dashboard() {
   // Customers' requests in the notebook not done yet.
   const openNotes = (data.ledger?.notes ?? []).filter(isOpenRequest).length;
   const allow = (p: Parameters<typeof can>[1]) => can(me, p);
-  const views = viewsFor(me);
+  const views = orderTabs(viewsFor(me), tabOrder);
   // A section this user can't open (e.g. remembered from another account) falls back to the first allowed one.
-  const current: View = views.some((v) => v.value === view) ? view : views[0].value;
+  const current: View = view && views.some((v) => v.value === view) ? view : views[0].value;
 
   function setView(v: View) {
     setViewState(v);
@@ -343,6 +349,7 @@ export function Dashboard() {
             onUsers={allow("owner_only") ? () => setDialog({ kind: "users" }) : undefined}
             onContacts={allow("claims") && data.ledger ? () => setDialog({ kind: "contacts" }) : undefined}
             onReminderTexts={allow("reminders") && data.ledger ? () => setDialog({ kind: "reminder-texts" }) : undefined}
+            onTabOrder={views.length > 1 ? () => setDialog({ kind: "tab-order" }) : undefined}
             onLogout={async () => {
               // Changes not sent yet belong to this user: they must reach the sheet before someone else logs in.
               if (data.pendingCount > 0) {
@@ -687,6 +694,20 @@ export function Dashboard() {
       )}
       {dialog?.kind === "sale-ticket" && data.ledger && (
         <SaleTicketDialog lines={data.ledger.sales.filter((x) => x.ticket === dialog.ticket)} notice="تسجل البيع ✓" onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "tab-order" && (
+        <TabOrderDialog
+          tabs={views}
+          onChange={(order) => {
+            setTabOrder(order);
+            saveTabOrder(order);
+          }}
+          onReset={() => {
+            setTabOrder([]);
+            saveTabOrder([]);
+          }}
+          onClose={() => setDialog(null)}
+        />
       )}
       {dialog?.kind === "reminder-texts" && data.ledger && <ReminderSettingsDialog data={data} onClose={() => setDialog(null)} onToast={setToast} />}
       {dialog?.kind === "claims" && data.ledger && (

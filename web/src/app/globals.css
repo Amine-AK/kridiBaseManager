@@ -1372,3 +1372,11 @@ a.btn { text-decoration: none; }
 /* «⏰ ذكّرني»: the system date-time field covers the chip, invisible (NotesView.tsx RemindPicker). */
 .remind-btn { position: relative; overflow: hidden; display: inline-flex; align-items: center; cursor: pointer; }
 .remind-btn input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+/* ⚙️ «↕️ ترتيب الأقسام» (TabOrderDialog.tsx). */
+.tab-order { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.tab-order li { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tab-order-n { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); font-size: 13px; font-weight: 700; }
+.tab-order-name { flex: 1; min-width: 0; font-weight: 600; }
+.tab-order-first { margin-inline-start: 8px; font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.tab-order .icon-btn { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 10px; font-size: 18px; }
+.tab-order .icon-btn:disabled { opacity: 0.35; }
