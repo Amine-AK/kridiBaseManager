@@ -100,6 +100,8 @@ export interface StockItem {
   /** Account and device of the last change (see lib/change-origin.ts). "" for older rows. */
   by?: string;
   device?: string;
+  /** Who the shop bought it from (a name of the «🚚 الموردين» list, or typed). Asked only in categories with `hasSupplier`. */
+  supplier?: string;
 }
 
 /** Product family (الفئات), used to group sales in the reports. */
@@ -110,6 +112,8 @@ export interface Category {
   marginTarget: number;
   /** An emoji, or a small picture as a data: URL (96×96, fits in one sheet cell). "" = automatic icon. */
   icon: string;
+  /** The product form asks for the supplier in this family (fridges, phones…). */
+  hasSupplier?: boolean;
 }
 
 /** Longest icon kept: a sheet cell holds 50,000 characters. */
@@ -341,6 +345,8 @@ export interface Setting {
 export const STICKER_LOOK_KEY = "sticker-look";
 /** After-sales services of the brands (خدمة العملاء): JSON list, see lib/claims.ts. */
 export const SERVICE_CONTACTS_KEY = "service-contacts";
+/** Shop setting: the suppliers list (JSON, lib/suppliers.ts). */
+export const SUPPLIERS_KEY = "suppliers";
 /** The WhatsApp reminders' texts with [variables] (see lib/reminder-templates.ts). */
 export const REMINDER_TEMPLATES_KEY = "reminder-templates";
 
@@ -426,7 +432,7 @@ type OpBody =
       type: "stock.update";
       id: string;
       base: string;
-      patch: Partial<Pick<StockItem, "item" | "category" | "condition" | "buyPrice" | "sellPrice" | "serial" | "codes" | "notes">>;
+      patch: Partial<Pick<StockItem, "item" | "category" | "condition" | "buyPrice" | "sellPrice" | "serial" | "codes" | "notes" | "supplier">>;
     }
   | { type: "stock.adjust"; move: StockMove }
   | { type: "stock.delete"; id: string }
@@ -594,6 +600,7 @@ function checkStock(s: StockItem): string | null {
   if (!isLedgerId(s.id) || !s.id.startsWith("I-")) return "رقم السلعة غير صحيح";
   if (!text(s.item, 300) || !s.item.trim()) return "اسم السلعة ضروري";
   if (!text(s.category, 100) || !text(s.serial, 100) || !text(s.notes, 1000)) return "معلومات السلعة غير صحيحة";
+  if (!text(s.supplier ?? "", 100)) return "اسم المورد طويل بزاف";
   if (!CONDITIONS.includes(s.condition)) return "الحالة غير صحيحة";
   if (!money(s.buyPrice) || !money(s.sellPrice)) return "الثمن غير صحيح";
   if (!amount(s.quantity) || !Number.isInteger(s.quantity)) return "الكمية غير صحيحة";
@@ -772,7 +779,7 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
       if (!s) return invalid(ledger, "هاد السلعة ما بقاتش فالمخزون");
       if (s.updatedAt === op.at) return { ledger, result: "already" };
       if (s.updatedAt !== op.base) return { ledger, result: "conflict", message: CONFLICT };
-      const next = { ...s, ...pick<StockItem>(op.patch, ["item", "category", "condition", "buyPrice", "sellPrice", "serial", "codes", "notes"]), updatedAt: op.at, ...origin(op) };
+      const next = { ...s, ...pick<StockItem>(op.patch, ["item", "category", "condition", "buyPrice", "sellPrice", "serial", "codes", "notes", "supplier"]), updatedAt: op.at, ...origin(op) };
       const err = checkStock(next) ?? codeTaken(ledger, productCodes(next), next.id);
       if (err) return invalid(ledger, err);
       return { ledger: { ...ledger, stock: replace(ledger.stock, s.id, next) }, result: "ok" };
@@ -808,9 +815,11 @@ export function applyOp(ledger: Ledger, op: LedgerOp): Applied {
       }
       const icon = c.icon ?? "";
       if (!validIcon(icon)) return invalid(ledger, "الأيقونة غير صحيحة ولا كبيرة بزاف");
-      const clean = { name: c.name.trim(), description: c.description.trim(), marginTarget: c.marginTarget, icon };
+      const clean: Category = { name: c.name.trim(), description: c.description.trim(), marginTarget: c.marginTarget, icon, ...(c.hasSupplier ? { hasSupplier: true } : {}) };
       const old = ledger.categories.find((x) => x.name === clean.name);
-      if (old && old.description === clean.description && old.marginTarget === clean.marginTarget && old.icon === clean.icon) return { ledger, result: "already" };
+      if (old && old.description === clean.description && old.marginTarget === clean.marginTarget && old.icon === clean.icon && Boolean(old.hasSupplier) === Boolean(clean.hasSupplier)) {
+        return { ledger, result: "already" };
+      }
       const categories = old ? ledger.categories.map((x) => (x.name === clean.name ? clean : x)) : [...ledger.categories, clean];
       return { ledger: { ...ledger, categories }, result: "ok" };
     }

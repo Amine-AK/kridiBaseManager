@@ -40,6 +40,7 @@ import { RemindersDialog } from "./RemindersDialog";
 import { ReminderSettingsDialog } from "./ReminderSettings";
 import { SetupScreen } from "./SetupScreen";
 import { SyncBar } from "./SyncBar";
+import { SuppliersDialog } from "./SuppliersDialog";
 import { TopMenu } from "./TopMenu";
 import { useLedger } from "./useLedger";
 import { Confirm } from "./ui";
@@ -83,6 +84,7 @@ type Dialog =
   | { kind: "dev-reset" } // DEV ONLY
   | { kind: "users" }
   | { kind: "contacts" }
+  | { kind: "suppliers" }
   | { kind: "approvals" }
   | { kind: "claims" }
   | { kind: "reminder-texts" }
@@ -349,6 +351,7 @@ export function Dashboard() {
             onUsers={allow("owner_only") ? () => setDialog({ kind: "users" }) : undefined}
             onContacts={allow("claims") && data.ledger ? () => setDialog({ kind: "contacts" }) : undefined}
             onReminderTexts={allow("reminders") && data.ledger ? () => setDialog({ kind: "reminder-texts" }) : undefined}
+            onSuppliers={allow("stock_add") && data.ledger ? () => setDialog({ kind: "suppliers" }) : undefined}
             onTabOrder={views.length > 1 ? () => setDialog({ kind: "tab-order" }) : undefined}
             onLogout={async () => {
               // Changes not sent yet belong to this user: they must reach the sheet before someone else logs in.
@@ -717,6 +720,7 @@ export function Dashboard() {
       )}
       {dialog?.kind === "approvals" && data.ledger && <ApprovalsDialog data={data} onClose={() => setDialog(null)} onToast={setToast} />}
       {dialog?.kind === "contacts" && data.ledger && <ServiceContactsDialog data={data} onClose={() => setDialog(null)} onToast={setToast} />}
+      {dialog?.kind === "suppliers" && data.ledger && <SuppliersDialog data={data} onClose={() => setDialog(null)} onToast={setToast} />}
       {dialog?.kind === "users" && <UsersDialog onClose={() => setDialog(null)} onToast={setToast} />}
       {/* DEV ONLY */}
       {dialog?.kind === "dev-reset" && <DevResetDialog data={data} onClose={() => setDialog(null)} onToast={setToast} />}

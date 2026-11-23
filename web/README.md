@@ -491,6 +491,21 @@ A main tab that looks like the paper notebook next to the till, for every accoun
   زبون» turns the sale into a credit sale with what was given as the advance. In a
   credit sale, an advance that covers everything offers «💵 سجلها بيع كاش».
 
+### 🚚 Suppliers (الموردين)
+
+⚙️ → «🚚 الموردين» (owner and stock accounts): the list of the shop's suppliers
+(name, optional phone with 📞, notes), add / edit / delete. It is a shop setting
+(tab الإعدادات, key `suppliers`, JSON), the same on every device.
+
+A family asks for the supplier when «🚚 طلب اسم المورد فـ هاد الفئة» is ticked in
+its form (🗂️ الفئات; sheet: last column of الفئات «طلب المورد (1 نعم، 0 لا)»,
+«نعم» works too). Then the product form shows «المورد»: choose from the list or
+type a new name («＋ زيد … للائحة الموردين» puts it in the list). In the other
+families the field is hidden and no supplier is saved. The name goes in the last
+column of المخزون, «المورد». In the stock list a product shows «🚚 name», the
+«🚚 جميع الموردين» menu next to the count keeps one supplier's products, and the
+search finds products by their supplier too.
+
 ### ↕️ Order of the main tabs
 
 ⚙️ → «↕️ ترتيب الأقسام»: move each main tab (الكريدي, البيع, المخزون, الإصلاح,

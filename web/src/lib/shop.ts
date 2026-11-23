@@ -36,7 +36,8 @@ export function searchStock(stock: StockItem[], query: string, limit = 8): Stock
   for (const item of stock) {
     const codes = productCodes(item).join(" ");
     const own = words(`${item.item} ${codes}`);
-    const family = words(item.category);
+    // The family and the supplier match too (a lower score than the name).
+    const family = words(`${item.category} ${item.supplier ?? ""}`);
     let score = 0;
     let ok = true;
     for (const t of tokens) {

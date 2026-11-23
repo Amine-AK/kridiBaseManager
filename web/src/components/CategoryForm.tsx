@@ -28,6 +28,7 @@ export function CategoryForm({
     description: category?.description ?? "",
     margin: category ? String(category.marginTarget || "") : "",
     icon: category?.icon ?? "📦",
+    hasSupplier: Boolean(category?.hasSupplier),
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -57,7 +58,7 @@ export function CategoryForm({
     if (!(margin >= 0 && margin <= 1000)) return setError("هامش الربح غير صحيح");
     data.run(`${category ? "تعديل" : "فئة جديدة"} · ${name}`, {
       type: "category.save",
-      category: { name, description: v.description.trim(), marginTarget: margin, icon: v.icon },
+      category: { name, description: v.description.trim(), marginTarget: margin, icon: v.icon, hasSupplier: v.hasSupplier },
     });
     onSaved(name);
   }
@@ -116,6 +117,9 @@ export function CategoryForm({
         <Field id="cat-description" label="الوصف" hint="اختياري">
           <input id="cat-description" value={v.description} onChange={(e) => setV((x) => ({ ...x, description: e.target.value }))} />
         </Field>
+        <label className="check">
+          <input type="checkbox" checked={v.hasSupplier} onChange={(e) => setV((x) => ({ ...x, hasSupplier: e.target.checked }))} /> 🚚 طلب اسم المورد فـ هاد الفئة (مثلا: ثلاجات، هواتف...)
+        </label>
         {error && (
           <p className="alert error" role="alert">
             {error}

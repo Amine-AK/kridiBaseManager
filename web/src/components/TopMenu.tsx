@@ -23,6 +23,8 @@ interface Props {
   onReminderTexts?: () => void;
   /** The order of the main tabs on this device (accounts with more than one tab). */
   onTabOrder?: () => void;
+  /** Accounts that add products (owner, stock): the suppliers list (🚚 الموردين). */
+  onSuppliers?: () => void;
   /** DEV ONLY: show «مسح جميع المعلومات». */
   devReset?: boolean;
   onDevReset?: () => void;
@@ -32,7 +34,7 @@ interface Props {
 }
 
 /** ⚙️ in the header: Excel backup, theme and logout. */
-export function TopMenu({ online, me, canBackup, onUsers, onContacts, onReminderTexts, onTabOrder, devReset, onDevReset, onSendBackup, onLogout, onToast }: Props) {
+export function TopMenu({ online, me, canBackup, onUsers, onContacts, onReminderTexts, onTabOrder, onSuppliers, devReset, onDevReset, onSendBackup, onLogout, onToast }: Props) {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>("system");
   const [downloading, setDownloading] = useState(false);
@@ -101,7 +103,7 @@ export function TopMenu({ online, me, canBackup, onUsers, onContacts, onReminder
               <hr />
             </>
           )}
-          {(onContacts || onReminderTexts || onTabOrder) && <p className="menu-label">الإعدادات</p>}
+          {(onContacts || onReminderTexts || onTabOrder || onSuppliers) && <p className="menu-label">الإعدادات</p>}
           {onTabOrder && (
             <button
               type="button"
@@ -128,23 +130,33 @@ export function TopMenu({ online, me, canBackup, onUsers, onContacts, onReminder
               💬 رسائل التذكير
             </button>
           )}
-          {(onReminderTexts || onTabOrder) && !onContacts && <hr />}
           {onContacts && (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                className="menu-item"
-                onClick={() => {
-                  setOpen(false);
-                  onContacts();
-                }}
-              >
-                🏭 خدمة العملاء (الشركات)
-              </button>
-              <hr />
-            </>
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              onClick={() => {
+                setOpen(false);
+                onContacts();
+              }}
+            >
+              🏭 خدمة العملاء (الشركات)
+            </button>
           )}
+          {onSuppliers && (
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              onClick={() => {
+                setOpen(false);
+                onSuppliers();
+              }}
+            >
+              🚚 الموردين
+            </button>
+          )}
+          {(onContacts || onReminderTexts || onTabOrder || onSuppliers) && <hr />}
           {canBackup && (
             <>
           <p className="menu-label">النسخة الاحتياطية · آخر وحدة {agoText(lastBackupAt())}</p>
