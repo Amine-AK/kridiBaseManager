@@ -235,7 +235,7 @@ describe("family icons", () => {
   it("is saved in the new column and read back", () => {
     const l = applyOp(emptyLedger(), op({ type: "category.save", category: { name: "تلفزات", description: "", marginTarget: 20, icon: "📺" } })).ledger;
     const row = ledgerToRows(l, "2026-10-20").categories.get("تلفزات")!;
-    expect(row).toEqual(["تلفزات", "", 20, "📺"]);
+    expect(row).toEqual(["تلفزات", "", 20, "📺", "0"]);
     expect(rowsToLedger({ categories: [row] }).categories[0].icon).toBe("📺");
     // Rows from before the column: no icon (the app guesses one from the name).
     expect(rowsToLedger({ categories: [["ريباراسيون", "", 60]] }).categories[0].icon).toBe("");

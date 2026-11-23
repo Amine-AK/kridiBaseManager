@@ -8,6 +8,7 @@ import { CONDITIONS, newLedgerId, nowParts, productCodes, STICKER_LOOK_KEY, type
 import { displayDate, SHOP } from "@/lib/receipt";
 import { currentSeller, findByCode, normalizeText, parseCodes, round2, searchStock } from "@/lib/shop";
 import { fixAzertyDigits } from "@/lib/scanner-input";
+import { asksSupplier, bySupplier, sameName, SUPPLIERS_KEY, supplierNames, suppliersOf, suppliersValue } from "@/lib/suppliers";
 import { can, seesCost } from "@/lib/roles";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { CategoryForm } from "./CategoryForm";
@@ -39,6 +40,7 @@ export function StockView({ data, onToast }: { data: LedgerState; onToast: (msg:
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
+  const [supplier, setSupplier] = useState("");
   const [sub, setSub] = useState<Sub>(null);
   // Category chips on a phone: one row to swipe, faded on the side where more chips are hidden.
   const chipsRef = useRef<HTMLDivElement>(null);
@@ -81,8 +83,10 @@ export function StockView({ data, onToast }: { data: LedgerState; onToast: (msg:
     let items = query.trim() ? searchStock(ledger.stock, query, 500) : [...ledger.stock].sort((a, b) => a.item.localeCompare(b.item, "ar"));
     if (category) items = items.filter((s) => s.category === category);
     if (onlyLow) items = items.filter((s) => s.quantity <= LOW);
+    if (supplier) items = bySupplier(items, supplier);
     return items;
-  }, [ledger.stock, query, category, onlyLow]);
+  }, [ledger.stock, query, category, onlyLow, supplier]);
+  const suppliers = useMemo(() => supplierNames(suppliersOf(ledger), ledger.stock), [ledger]);
 
   const low = ledger.stock.filter((s) => s.quantity <= LOW).length;
   const value = round2(ledger.stock.reduce((t, s) => t + Math.max(0, s.quantity) * s.buyPrice, 0));
@@ -173,7 +177,24 @@ export function StockView({ data, onToast }: { data: LedgerState; onToast: (msg:
         ))}
       </div>
 
-      <p className="result-count muted">{list.length} سلعة</p>
+      <div className="result-row">
+        <p className="result-count muted">{list.length} سلعة</p>
+        {(suppliers.length > 0 || supplier) && (
+          <>
+            <label className="visually-hidden" htmlFor="stock-supplier">
+              المورد
+            </label>
+            <select id="stock-supplier" className={`supplier-filter ${supplier ? "on" : ""}`} value={supplier} onChange={(e) => setSupplier(e.target.value)}>
+              <option value="">🚚 جميع الموردين</option>
+              {suppliers.map((n) => (
+                <option key={n} value={n}>
+                  🚚 {n}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+      </div>
       {list.length === 0 ? (
         <p className="empty">{ledger.stock.length ? "ما لقينا حتى سلعة." : "المخزون خاوي. زيد السلع اللي عندك باش تبيعهم بسرعة وتعرف الربح."}</p>
       ) : (
@@ -193,6 +214,7 @@ export function StockView({ data, onToast }: { data: LedgerState; onToast: (msg:
                     {s.category || "بلا فئة"} · {s.condition}
                     {productCodes(s).length > 1 ? ` · 🏷️ ${productCodes(s).length} أكواد` : s.serial ? ` · ${s.serial}` : ""}
                   </span>
+                  {s.supplier && <span className="supplier-badge">🚚 {s.supplier}</span>}
                 </span>
                 <span className="stock-price">
                   <span className="amount">{money(s.sellPrice)}</span>
@@ -266,6 +288,7 @@ export function StockView({ data, onToast }: { data: LedgerState; onToast: (msg:
                     <span className="muted small">
                       {ledger.stock.filter((s) => s.category === c.name).length} سلعة
                       {c.marginTarget ? ` · هامش ${c.marginTarget}%` : ""}
+                      {c.hasSupplier ? " · 🚚 كيطلب المورد" : ""}
                     </span>
                   </span>
                   <span className="muted small">تعديل</span>
@@ -343,6 +366,7 @@ function StockForm({
     quantity: "1",
     codes: item ? productCodes(item).join("\n") : (code ?? ""),
     notes: item?.notes ?? "",
+    supplier: item?.supplier ?? "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const set = (k: keyof typeof v) => (value: string) => {
@@ -351,6 +375,10 @@ function StockForm({
   };
   const [addingCategory, setAddingCategory] = useState(false);
   const categoryName = v.category;
+  // The supplier is asked only in the families that want it (fridges, phones…).
+  const asks = asksSupplier(ledger.categories, categoryName);
+  const supplierList = suppliersOf(ledger);
+  const known = sameName(supplierList, v.supplier);
   const target = ledger.categories.find((c) => c.name === categoryName)?.marginTarget ?? 0;
   const buy = parseAmount(v.buyPrice || "0");
   const suggested = buy > 0 && target > 0 ? Math.ceil((buy * (1 + target / 100)) / 10) * 10 : 0;
@@ -371,6 +399,7 @@ function StockForm({
     if (!(sell > 0)) err.sellPrice = "ثمن البيع ضروري";
     else if (buy > 0 && sell < buy) err.sellPrice = "ثمن البيع تحت ثمن الشراء";
     if (!item && (!Number.isInteger(qty) || qty < 0)) err.quantity = "الكمية غير صحيحة";
+    if (asks && v.supplier.trim().length > 100) err.supplier = "اسم المورد طويل بزاف";
     if (sameCode) err.codes = `الكود «${sameCode.c}» مستعمل ديجا فـ «${sameCode.other!.item}»`;
     setErrors(err);
     if (Object.keys(err).length) return;
@@ -387,7 +416,9 @@ function StockForm({
     saved.current = true;
     const sell = parseAmount(v.sellPrice || String(suggested || ""));
     const at = new Date().toISOString();
-    const fields = { item: v.item.trim(), category: categoryName, condition: v.condition, buyPrice: buy || 0, sellPrice: sell, serial: codes[0] ?? "", codes: codes.slice(1), notes: v.notes.trim() };
+    const fields = { item: v.item.trim(), category: categoryName, condition: v.condition, buyPrice: buy || 0, sellPrice: sell, serial: codes[0] ?? "", codes: codes.slice(1), notes: v.notes.trim(),
+      // A name of the list keeps the list's spelling; hidden field = no supplier.
+      supplier: asks ? (known?.name ?? v.supplier.trim()) : "" };
     if (item) {
       data.run(`تعديل سلعة · ${fields.item}`, { type: "stock.update", id: item.id, base: item.updatedAt, patch: fields });
       return onSaved("تبدلات السلعة");
@@ -459,6 +490,37 @@ function StockForm({
             ))}
           </select>
         </Field>
+        {asks && (
+          <Field
+            id="st-supplier"
+            label="المورد"
+            error={errors.supplier}
+            hint={supplierList.length ? "اختار من اللائحة ولا كتب اسم جديد" : "اختياري · سجل الموردين من ⚙️ ← 🚚 الموردين"}
+          >
+            <input id="st-supplier" list="suppliers-list" value={v.supplier} onChange={(e) => set("supplier")(e.target.value)} maxLength={100} autoComplete="off" placeholder="🚚 اسم المورد" />
+            <datalist id="suppliers-list">
+              {supplierList.map((s) => (
+                <option key={s.id} value={s.name} />
+              ))}
+            </datalist>
+            {v.supplier.trim() && !known && (
+              <button
+                type="button"
+                className="link-btn small"
+                onClick={() => {
+                  const name = v.supplier.trim();
+                  data.run(`🚚 مورد جديد · ${name}`, {
+                    type: "setting.save",
+                    key: SUPPLIERS_KEY,
+                    value: suppliersValue([...supplierList, { id: Math.random().toString(36).slice(2, 10), name, phone: "", notes: "" }]),
+                  });
+                }}
+              >
+                ＋ زيد «{v.supplier.trim()}» للائحة الموردين
+              </button>
+            )}
+          </Field>
+        )}
         {/* Without cost visibility the price can be entered for a new product, never read back. */}
         {(!item || seesCost(data.me)) && (
           <Field id="st-buyPrice" label="ثمن الشراء" error={errors.buyPrice} hint="ديال الوحدة، درهم">

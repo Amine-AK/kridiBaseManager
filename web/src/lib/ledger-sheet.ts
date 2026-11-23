@@ -82,8 +82,8 @@ export const HEADERS: Record<TableKey, string[]> = {
     "رقم الوصل", "رقم الزبون", "الزبون", "التاريخ", "الساعة", "المبلغ", "النوع", "رقم السلعة", "السلعة", "ملاحظات", "تاريخ الإضافة", "آخر تعديل",
   ],
   changes: ["رقم", "رقم الزبون", "الزبون", "التاريخ", "الطريطة القديمة", "الطريطة الجديدة", "المدة القديمة", "المدة الجديدة", "السبب", "تاريخ الإضافة"],
-  stock: ["رقم السلعة", "السلعة", "الفئة", "الحالة", "ثمن الشراء", "ثمن البيع", "الكمية", "الكود (QR / باركود / S/N)", "ملاحظات", "تاريخ الإضافة", "آخر تعديل", "أكواد أخرى (موردين آخرين)", "آخر تعديل من", "الجهاز"],
-  categories: ["الفئة", "الوصف", "هامش الربح المستهدف %", "الأيقونة"],
+  stock: ["رقم السلعة", "السلعة", "الفئة", "الحالة", "ثمن الشراء", "ثمن البيع", "الكمية", "الكود (QR / باركود / S/N)", "ملاحظات", "تاريخ الإضافة", "آخر تعديل", "أكواد أخرى (موردين آخرين)", "آخر تعديل من", "الجهاز", "المورد"],
+  categories: ["الفئة", "الوصف", "هامش الربح المستهدف %", "الأيقونة", "طلب المورد (1 نعم، 0 لا)"],
   settings: ["المفتاح", "القيمة (JSON)", "آخر تعديل"],
   repairs: [
     "رقم الإصلاح", "الباركود", "التاريخ", "الساعة", "مول الجهاز", "الهاتف", "الجهاز", "المشكل",
@@ -218,12 +218,16 @@ export function rowToStock(r: unknown[]): StockItem | null {
     codes: lines(r[11]),
     by: s(r[12]),
     device: s(r[13]),
+    // Optional fields only when set, so older rows read back the same.
+    ...(s(r[14]) ? { supplier: s(r[14]) } : {}),
   };
 }
 
 export function rowToCategory(r: unknown[]): Category | null {
   const name = s(r[0]);
-  return name ? { name, description: s(r[1]), marginTarget: n(r[2]), icon: s(r[3]) } : null;
+  if (!name) return null;
+  const asks = s(r[4]) === "1" || s(r[4]) === "نعم";
+  return { name, description: s(r[1]), marginTarget: n(r[2]), icon: s(r[3]), ...(asks ? { hasSupplier: true } : {}) };
 }
 
 export function rowToSetting(r: unknown[]): Setting | null {
@@ -454,10 +458,10 @@ export function ledgerToRows(ledger: Ledger, today = todayISO()): Record<TableKe
   const stock = new Map<string, Cell[]>(
     ledger.stock.map((x) => [
       x.id,
-      [x.id, x.item, x.category, x.condition, x.buyPrice, x.sellPrice, x.quantity, x.serial, x.notes, x.createdAt, x.updatedAt, (x.codes ?? []).join("\n"), x.by ?? "", x.device ?? ""],
+      [x.id, x.item, x.category, x.condition, x.buyPrice, x.sellPrice, x.quantity, x.serial, x.notes, x.createdAt, x.updatedAt, (x.codes ?? []).join("\n"), x.by ?? "", x.device ?? "", x.supplier ?? ""],
     ]),
   );
-  const categories = new Map<string, Cell[]>(ledger.categories.map((c) => [c.name, [c.name, c.description, money(c.marginTarget), c.icon]]));
+  const categories = new Map<string, Cell[]>(ledger.categories.map((c) => [c.name, [c.name, c.description, money(c.marginTarget), c.icon, c.hasSupplier ? "1" : "0"]]));
   const sales = new Map<string, Cell[]>(
     ledger.sales.map((x) => [
       x.id,

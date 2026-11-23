@@ -872,6 +872,17 @@ a.btn { text-decoration: none; }
 .stock-row.out .stock-open { border-inline-start-color: var(--danger); }
 .stock-name { display: grid; min-width: 0; }
 .stock-name strong { overflow-wrap: anywhere; }
+
+/* Suppliers (🚚): badge on a product, filter next to the count. */
+.supplier-badge {
+  justify-self: start; margin-top: 3px; padding: 1px 8px; border-radius: 999px;
+  background: var(--surface-2); font-size: 12px;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.result-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.result-row .result-count { margin: 0; }
+.supplier-filter { width: auto; max-width: 60%; min-height: 34px; padding: 4px 10px; font-size: 13px; border-radius: 999px; }
+.supplier-filter.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .stock-price { display: grid; justify-items: end; flex: none; }
 .qty-pill {
   flex: none; width: 62px; display: grid; place-items: center; align-content: center; gap: 0;
